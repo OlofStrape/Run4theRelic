@@ -1,0 +1,90 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Mm]emoryCaptures/
+[Uu]serSettings/
+
+# Visual Studio / MonoDevelop generated
+.vs/
+.vscode/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Unity3D generated meta files
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Unity3D generated file on crash reports
+sysinfo.txt
+
+# Builds
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# Crashlytics generated file
+crashlytics-build.properties
+
+# OS generated
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+*.lnk
+
+# Unity Hub
+*.hub
+
+# Unity Cloud Build
+.cloudbuild/
+
+# Unity Cache Server
+.cache/
+
+# Unity Package Manager
+Packages/manifest.json.bak
+Packages/packages-lock.json.bak
+
+# Unity Test Framework
+TestResults/
+*.Test.xml
+
+# Unity Addressables
+Assets/AddressableAssetsData/*/*.bin*
+Assets/AddressableAssetsData/*/*.hash
+
+# Unity Analytics
+Assets/Plugins/Editor/UnityAnalyticsEditor.cs
+
+# Unity XR
+Assets/XR/
+Assets/XR.meta
+
+# Custom ignores for this project
+*.unity
+*.prefab
+*.meta
+ProjectSettings/ 
