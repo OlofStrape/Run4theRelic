@@ -80,3 +80,16 @@
 
 ## Nästa Steg
 Efter setup, se `Documentation/TASKS.md` för MVP-uppgifter. 
+
+## Snabb visuell setup
+1. Kör `Relic → Build Materials`
+2. Kör `Relic → Build Temple Blockout`
+3. Lägg `SetupGlobalVolume` på ett tomt GameObject
+4. Dra `GlowPulse` på Relicen / run-ytor (sätt baseColor till emissive färg)
+5. Klicka Play
+
+### Sabotage Fog (fallback)
+- Lägg `SabotageManager` i scenen, koppla om behov finns
+- Trigga `SabotageManager.ApplyFog()` (via tillfällig knapp eller debug)
+- Dimma syns i ~5 sekunder
+- Note: Byt till prefab senare när multi-target finns
