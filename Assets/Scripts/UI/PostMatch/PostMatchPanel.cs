@@ -61,7 +61,14 @@ namespace Run4theRelic.UI.PostMatch
 		}
 
 		public void PlayAgain() => SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-		public void QuitGame() { #if UNITY_EDITOR UnityEditor.EditorApplication.isPlaying = false; #else Application.Quit(); #endif }
+		public void QuitGame() 
+		{ 
+#if UNITY_EDITOR
+			UnityEditor.EditorApplication.isPlaying = false;
+#else
+			Application.Quit();
+#endif
+		}
 	}
 }
 
