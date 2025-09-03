@@ -5,6 +5,10 @@ using Run4theRelic.Puzzles;
 
 namespace Run4theRelic.Sabotage
 {
+    /// <summary>
+    /// Central sabotage controller. Provides Fog, TimeDrain and FakeClues effects.
+    /// Uses PuzzleControllerBase.Active to target the currently running puzzle.
+    /// </summary>
     public class SabotageManager : MonoBehaviour
     {
         public static SabotageManager Instance { get; private set; }
@@ -27,8 +31,10 @@ namespace Run4theRelic.Sabotage
         }
 
         // === FOG ===
+        /// <summary>Apply fog for the default <see cref="fogDuration"/>.</summary>
         public void ApplyFog() => ApplyFog(fogDuration);
 
+        /// <summary>Apply fog effect for a specific duration in seconds.</summary>
         public void ApplyFog(float duration)
         {
             if (_fogRoutine != null) StopCoroutine(_fogRoutine);
@@ -70,6 +76,7 @@ namespace Run4theRelic.Sabotage
         }
 
         // === TIME DRAIN ===
+        /// <summary>Drain time from the active puzzle.</summary>
         public void ApplyTimeDrain(float seconds)
         {
             if (seconds <= 0f) return;
@@ -86,6 +93,7 @@ namespace Run4theRelic.Sabotage
         }
 
         // === FAKE CLUES ===
+        /// <summary>Trigger fake clues on the active puzzle (delegated to puzzle implementation).</summary>
         public void ApplyFakeClues(float duration)
         {
             var active = PuzzleControllerBase.Active;
@@ -101,6 +109,7 @@ namespace Run4theRelic.Sabotage
         }
 
         // Overload to be compatible with existing UI wheel signature
+        /// <summary>Overload kept for UI compatibility; count is ignored by default.</summary>
         public void ApplyFakeClues(float duration, int count)
         {
             ApplyFakeClues(duration);

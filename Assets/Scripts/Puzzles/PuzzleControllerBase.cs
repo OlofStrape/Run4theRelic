@@ -5,7 +5,11 @@ using Run4theRelic.Sabotage;     // TokenBank + Manager
 
 namespace Run4theRelic.Puzzles
 {
-    /// <summary>Base puzzle with a simple countdown timer and completion hooks.</summary>
+    /// <summary>
+    /// Base puzzle controller that manages a shared countdown timer, gold-clear detection,
+    /// token rewards, and integration hooks for sabotage effects.
+    /// Subclasses should override the lightweight hooks to implement puzzle-specific logic.
+    /// </summary>
     public abstract class PuzzleControllerBase : MonoBehaviour
     {
         [SerializeField] protected float timeLimit = 60f;
@@ -23,14 +27,21 @@ namespace Run4theRelic.Puzzles
         protected bool _isCompleted;
         protected bool _isFailed;
 
+        /// <summary>
+        /// Currently active puzzle instance. Used by <see cref="Run4theRelic.Sabotage.SabotageManager"/>.
+        /// </summary>
         public static PuzzleControllerBase Active { get; private set; }
 
         protected float GoldTime => timeLimit * Mathf.Clamp01(goldTimeFraction);
 
         // Back-compat properties
+        /// <summary>Current remaining time in seconds.</summary>
         public float CurrentTime => _timer;
+        /// <summary>True while the puzzle is running.</summary>
         public bool IsActive => _running;
+        /// <summary>True if the puzzle has been completed.</summary>
         public bool IsCompleted => _isCompleted;
+        /// <summary>True if the puzzle has failed (timeout).</summary>
         public bool IsFailed => _isFailed;
 
         protected virtual void Awake()
@@ -40,8 +51,9 @@ namespace Run4theRelic.Puzzles
             if (!sabotageManager) sabotageManager = FindObjectOfType<SabotageManager>(true);
         }
 
-        protected virtual void Start()
+        protected virtual void OnEnable()
         {
+            // Auto-start to remain compatible with older subclasses that implement their own Start()
             _timer = timeLimit;
             _running = true;
             _isCompleted = false;
@@ -73,7 +85,10 @@ namespace Run4theRelic.Puzzles
             }
         }
 
-        /// <summary>Call when the puzzle is solved successfully.</summary>
+        /// <summary>
+        /// Marks the puzzle as completed, computes clear time and gold status, awards token on gold
+        /// and shows sabotage wheel if available.
+        /// </summary>
         protected void Complete()
         {
             if (!_running) return;
@@ -105,7 +120,9 @@ namespace Run4theRelic.Puzzles
 
         // === Sabotage-hooks som Manager kan anropa ===
 
-        /// <summary>Dra av sekunder från timern (kan anropas av SabotageManager).</summary>
+        /// <summary>
+        /// Apply a time drain to the active timer. Intended to be called from SabotageManager.
+        /// </summary>
         public virtual void ApplyTimeDrain(float seconds)
         {
             if (!_running || seconds <= 0f) return;
@@ -115,24 +132,36 @@ namespace Run4theRelic.Puzzles
             Debug.Log($"[{name}] TimeDrain: -{seconds:0.##}s → {_timer:0.##}s kvar");
         }
 
-        /// <summary>Stub för att spawna "falska ledtrådar". Override:a i specifika pussel om du vill göra mer.</summary>
+        /// <summary>
+        /// Stub to spawn fake clues for a duration. Override in specific puzzles to implement behavior.
+        /// </summary>
         public virtual void SpawnFakeClues(float durationSeconds)
         {
             Debug.Log($"[{name}] FakeClues for {durationSeconds:0.##}s (stub). Override in puzzle to implement visuals/logic.");
         }
 
         // === Hooks att override:a i pussel ===
+        /// <summary>Called when the puzzle starts (new API).</summary>
         protected virtual void OnStartPuzzle() { }
+        /// <summary>Called when the puzzle completes (new API).</summary>
         protected virtual void OnCompletePuzzle(float clearTime, bool gold) { }
+        /// <summary>Called when the puzzle fails due to timeout (new API).</summary>
         protected virtual void OnFailed() { Debug.LogWarning($"{name}: puzzle failed (timeout)"); }
 
         // === Back-compat hooks (existing subclasses override these) ===
+        /// <summary>Legacy hook used by existing subclasses when the puzzle starts.</summary>
         protected virtual void OnPuzzleStart() { }
+        /// <summary>Legacy hook used by existing subclasses when the puzzle completes.</summary>
         protected virtual void OnPuzzleComplete() { }
+        /// <summary>Legacy hook used by existing subclasses when the puzzle fails.</summary>
         protected virtual void OnPuzzleFailed() { }
+        /// <summary>Legacy hook used by existing subclasses when the puzzle is reset.</summary>
         protected virtual void OnPuzzleReset() { }
 
         // Back-compat API used by older SabotageManager implementations
+        /// <summary>
+        /// Back-compat alias of ApplyTimeDrain used by older systems.
+        /// </summary>
         public void ReduceTimeRemaining(float seconds)
         {
             ApplyTimeDrain(seconds);
