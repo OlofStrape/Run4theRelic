@@ -143,6 +143,19 @@ namespace Run4theRelic.Core
                     GameEvents.TriggerMatchEnded();
                     break;
             }
+
+            // Rapportera fas och eventuell timer till HUD
+            float durationSeconds = 0f;
+            if (newPhase == MatchPhase.Countdown || newPhase == MatchPhase.GoldTimeSabotage)
+            {
+                durationSeconds = _phaseTimer;
+            }
+            else if (newPhase == MatchPhase.Final)
+            {
+                durationSeconds = 0f; // Final-fasen har ingen timer
+            }
+
+            GameEvents.OnPhaseChanged?.Invoke(_currentPhase, durationSeconds);
         }
         
         private MatchPhase GetNextPhase(MatchPhase currentPhase)
