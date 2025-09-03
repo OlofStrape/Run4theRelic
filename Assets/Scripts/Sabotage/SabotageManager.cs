@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Run4theRelic.Puzzles;
 
 namespace Run4theRelic.Sabotage
 {
@@ -19,11 +20,16 @@ namespace Run4theRelic.Sabotage
         [SerializeField] private Color fogColor = new Color(0.5f, 0.5f, 0.5f, 0.8f);
         [SerializeField] private float fogDensity = 0.5f;
         
+        [Header("Fake Clues")]
+        [SerializeField] private GameObject fakeCluePrefab;
+        [SerializeField] private int defaultFakeClueCount = 6;
+        
         [Header("Debug")]
         [SerializeField] private bool showDebugInfo = true;
         
         private Dictionary<GameObject, FogEffect> _activeFogEffects = new Dictionary<GameObject, FogEffect>();
         private bool _globalFogEnabled;
+        private readonly List<GameObject> _spawnedFakeClues = new List<GameObject>();
         
         /// <summary>
         /// Is global fog currently enabled.
@@ -140,6 +146,102 @@ namespace Run4theRelic.Sabotage
             {
                 Debug.Log($"Global fog {(enabled ? "enabled" : "disabled")}");
             }
+        }
+        
+        /// <summary>
+        /// Apply a temporary global fog effect.
+        /// </summary>
+        public void ApplyFog(float duration = -1f)
+        {
+            if (duration < 0f) duration = defaultFogDuration;
+            SetGlobalFog(true);
+            StartCoroutine(ClearGlobalFogAfter(duration));
+        }
+        
+        private IEnumerator ClearGlobalFogAfter(float duration)
+        {
+            yield return new WaitForSeconds(duration);
+            SetGlobalFog(false);
+        }
+        
+        /// <summary>
+        /// Reduce time remaining on the currently active puzzle.
+        /// </summary>
+        public void ApplyTimeDrain(float seconds = 5f)
+        {
+            if (seconds <= 0f) return;
+            PuzzleControllerBase[] puzzles = FindObjectsOfType<PuzzleControllerBase>(true);
+            foreach (var p in puzzles)
+            {
+                if (p != null && p.IsActive && !p.IsCompleted && !p.IsFailed)
+                {
+                    p.ReduceTimeRemaining(seconds);
+                    if (showDebugInfo) Debug.Log($"ApplyTimeDrain: -{seconds}s to {p.gameObject.name}");
+                    return;
+                }
+            }
+            if (showDebugInfo) Debug.Log("ApplyTimeDrain: No active puzzle found.");
+        }
+        
+        /// <summary>
+        /// Spawn fake clue planes near the camera or center point for a duration.
+        /// </summary>
+        public void ApplyFakeClues(float duration = 5f, int count = -1)
+        {
+            if (count <= 0) count = defaultFakeClueCount;
+            Transform origin = Camera.main != null ? Camera.main.transform : transform;
+            Vector3 center = origin.position + origin.forward * 2f;
+            Quaternion faceCam = Camera.main != null ? Quaternion.LookRotation(center - Camera.main.transform.position) : Quaternion.identity;
+            
+            for (int i = 0; i < count; i++)
+            {
+                GameObject clue = CreateFakeClue(center, faceCam, i);
+                _spawnedFakeClues.Add(clue);
+            }
+            
+            StartCoroutine(ClearFakeCluesAfter(duration));
+            if (showDebugInfo) Debug.Log($"ApplyFakeClues: Spawned {count} fake clues for {duration}s");
+        }
+        
+        private GameObject CreateFakeClue(Vector3 center, Quaternion rotation, int index)
+        {
+            Vector3 offset = Random.onUnitSphere;
+            offset.y = Mathf.Abs(offset.y) * 0.5f;
+            offset = offset.normalized * Random.Range(0.5f, 1.2f);
+            Vector3 pos = center + offset;
+            GameObject go;
+            if (fakeCluePrefab != null)
+            {
+                go = Instantiate(fakeCluePrefab, pos, rotation);
+            }
+            else
+            {
+                go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                go.transform.SetPositionAndRotation(pos, rotation);
+                go.transform.localScale = Vector3.one * Random.Range(0.2f, 0.5f);
+                var renderer = go.GetComponent<Renderer>();
+                if (renderer != null)
+                {
+                    var shader = Shader.Find("Unlit/Transparent");
+                    if (shader == null) shader = Shader.Find("Unlit/Color");
+                    Material m = new Material(shader);
+                    m.color = new Color(Random.value, Random.value, Random.value, 0.9f);
+                    renderer.material = m;
+                }
+            }
+            go.name = $"FakeClue_{index}";
+            go.layer = gameObject.layer;
+            return go;
+        }
+        
+        private IEnumerator ClearFakeCluesAfter(float duration)
+        {
+            yield return new WaitForSeconds(duration);
+            foreach (var go in _spawnedFakeClues)
+            {
+                if (go != null) Destroy(go);
+            }
+            _spawnedFakeClues.Clear();
         }
         
         /// <summary>
