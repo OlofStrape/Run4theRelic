@@ -1,261 +1,141 @@
 using UnityEngine;
 using Run4theRelic.Core;
-using Run4theRelic.Sabotage;
-using Run4theRelic.UI;
+using Run4theRelic.UI;           // SabotageWheel
+using Run4theRelic.Sabotage;     // TokenBank + Manager
 
 namespace Run4theRelic.Puzzles
 {
-    /// <summary>
-    /// Abstrakt basklass för alla pussel med gemensam timer och completion-logik.
-    /// Implementera OnPuzzleStart, OnPuzzleComplete och OnPuzzleFailed i subklasser.
-    /// </summary>
+    /// <summary>Base puzzle with a simple countdown timer and completion hooks.</summary>
     public abstract class PuzzleControllerBase : MonoBehaviour
     {
-        [Header("Puzzle Settings")]
         [SerializeField] protected float timeLimit = 60f;
-        [SerializeField] protected float goldTimeFraction = 0.5f;
-        [SerializeField] protected bool autoStartOnEnable = true;
-        
-        [Header("Debug")]
-        [SerializeField] protected bool showDebugInfo = true;
-        
-        protected float _currentTime;
-        protected bool _isActive;
+        [SerializeField, Tooltip("Completion within this time triggers 'gold'. Default = 50% of timeLimit.")]
+        protected float goldTimeFraction = 0.5f;
+
+        // === Nya kopplingar (kan lämnas tomma i Inspector; vi hittar dem automatiskt) ===
+        [Header("Integration (optional)")]
+        [SerializeField] SabotageTokenBank tokenBank;
+        [SerializeField] SabotageWheel sabotageWheel;
+        [SerializeField] SabotageManager sabotageManager;
+
+        protected float _timer;
+        bool _running;
         protected bool _isCompleted;
         protected bool _isFailed;
-        
-        /// <summary>
-        /// Aktuell tid kvar på pusslet.
-        /// </summary>
-        public float CurrentTime => _currentTime;
-        
-        /// <summary>
-        /// Är pusslet aktivt och räknar ner.
-        /// </summary>
-        public bool IsActive => _isActive;
-        
-        /// <summary>
-        /// Är pusslet löst.
-        /// </summary>
+
+        public static PuzzleControllerBase Active { get; private set; }
+
+        protected float GoldTime => timeLimit * Mathf.Clamp01(goldTimeFraction);
+
+        // Back-compat properties
+        public float CurrentTime => _timer;
+        public bool IsActive => _running;
         public bool IsCompleted => _isCompleted;
-        
-        /// <summary>
-        /// Är pusslet misslyckat (tid slut).
-        /// </summary>
         public bool IsFailed => _isFailed;
-        
-        /// <summary>
-        /// Gold time threshold (tid för optimal completion).
-        /// </summary>
-        public float GoldTimeThreshold => timeLimit * goldTimeFraction;
-        
-        /// <summary>
-        /// Är pusslet löst inom gold time.
-        /// </summary>
-        public bool IsGoldTimeCompletion => _isCompleted && _currentTime >= GoldTimeThreshold;
-        
-        protected virtual void OnEnable()
+
+        protected virtual void Awake()
         {
-            if (autoStartOnEnable)
-            {
-                StartPuzzle();
-            }
+            if (!tokenBank) tokenBank = FindObjectOfType<SabotageTokenBank>(true);
+            if (!sabotageWheel) sabotageWheel = FindObjectOfType<SabotageWheel>(true);
+            if (!sabotageManager) sabotageManager = FindObjectOfType<SabotageManager>(true);
         }
-        
+
+        protected virtual void Start()
+        {
+            _timer = timeLimit;
+            _running = true;
+            _isCompleted = false;
+            _isFailed = false;
+            Active = this;
+            OnStartPuzzle();
+            OnPuzzleStart(); // back-compat
+            // Init tick för HUD/pace
+            GameEvents.TriggerPuzzleTimerTick(Mathf.CeilToInt(_timer), Mathf.CeilToInt(timeLimit));
+        }
+
         protected virtual void Update()
         {
-            if (!_isActive || _isCompleted || _isFailed) return;
-            
-            // Uppdatera timer
-            _currentTime -= Time.deltaTime;
-            
-            // Kontrollera om tiden är slut
-            if (_currentTime <= 0f)
+            if (!_running) return;
+            _timer -= Time.deltaTime;
+
+            // Skicka sekundticks till HUD
+            int secondsRemaining = Mathf.Max(0, Mathf.CeilToInt(_timer));
+            int secondsLimit = Mathf.CeilToInt(timeLimit);
+            GameEvents.TriggerPuzzleTimerTick(secondsRemaining, secondsLimit);
+
+            if (_timer <= 0f)
             {
-                OnTimeExpired();
-            }
-            
-            // Debug-info
-            if (showDebugInfo)
-            {
-                Debug.Log($"Puzzle {gameObject.name}: {_currentTime:F1}s remaining");
-            }
-        }
-        
-        /// <summary>
-        /// Startar pusslet och aktiverar timer.
-        /// </summary>
-        public virtual void StartPuzzle()
-        {
-            if (_isActive) return;
-            
-            _isActive = true;
-            _isCompleted = false;
-            _isFailed = false;
-            _currentTime = timeLimit;
-            
-            OnPuzzleStart();
-            
-            if (showDebugInfo)
-            {
-                Debug.Log($"Puzzle {gameObject.name} started with {timeLimit}s time limit");
+                _running = false;
+                _isFailed = true;
+                if (Active == this) Active = null;
+                OnFailed();
+                OnPuzzleFailed(); // back-compat
             }
         }
-        
-        /// <summary>
-        /// Pausar pusslet (timer stannar).
-        /// </summary>
-        public virtual void PausePuzzle()
+
+        /// <summary>Call when the puzzle is solved successfully.</summary>
+        protected void Complete()
         {
-            if (!_isActive) return;
-            
-            _isActive = false;
-            
-            if (showDebugInfo)
-            {
-                Debug.Log($"Puzzle {gameObject.name} paused");
-            }
-        }
-        
-        /// <summary>
-        /// Återupptar pausat pussel.
-        /// </summary>
-        public virtual void ResumePuzzle()
-        {
-            if (_isActive || _isCompleted || _isFailed) return;
-            
-            _isActive = true;
-            
-            if (showDebugInfo)
-            {
-                Debug.Log($"Puzzle {gameObject.name} resumed");
-            }
-        }
-        
-        /// <summary>
-        /// Markerar pusslet som löst och triggar completion event.
-        /// </summary>
-        protected virtual void Complete()
-        {
-            if (_isCompleted || _isFailed) return;
-            
+            if (!_running) return;
+
+            _running = false;
             _isCompleted = true;
-            _isActive = false;
-            
-            float clearTime = timeLimit - _currentTime;
-            bool isGoldTime = IsGoldTimeCompletion;
-            
-            // Trigga completion event
-            GameEvents.TriggerPuzzleCompleted(-1, clearTime); // -1 = singleplayer
-            
-            OnPuzzleComplete();
-            
-            if (isGoldTime)
+            float clearTime = timeLimit - Mathf.Max(_timer, 0f);
+            bool gold = clearTime <= GoldTime + 0.0001f;
+
+            // Notify core
+            GameEvents.TriggerPuzzleCompleted(-1, clearTime);
+
+            // GOLD → token + valhjul (Fog/TimeDrain/FakeClues)
+            if (gold)
             {
-                var tokenBank = Object.FindObjectOfType<SabotageTokenBank>(true);
-                if (tokenBank != null) tokenBank.Add(1);
-                var wheel = Object.FindObjectOfType<SabotageWheel>(true);
-                if (wheel != null)
+                if (tokenBank) tokenBank.Add(1);
+
+                if (sabotageWheel && sabotageManager)
                 {
-                    wheel.Show(new[]
-                    {
-                        SabotageWheel.Option.Fog,
-                        SabotageWheel.Option.TimeDrain,
-                        SabotageWheel.Option.FakeClues
-                    });
+                    var options = new[] { SabotageWheel.Option.Fog, SabotageWheel.Option.TimeDrain, SabotageWheel.Option.FakeClues };
+                    sabotageWheel.Show(options);
                 }
             }
-            
-            if (showDebugInfo)
-            {
-                string timeStatus = isGoldTime ? "GOLD TIME!" : "Normal completion";
-                Debug.Log($"Puzzle {gameObject.name} completed in {clearTime:F2}s - {timeStatus}");
-            }
+
+            if (Active == this) Active = null;
+            OnCompletePuzzle(clearTime, gold);
+            OnPuzzleComplete(); // back-compat
         }
-        
-        /// <summary>
-        /// Markerar pusslet som misslyckat.
-        /// </summary>
-        protected virtual void Fail()
+
+        // === Sabotage-hooks som Manager kan anropa ===
+
+        /// <summary>Dra av sekunder från timern (kan anropas av SabotageManager).</summary>
+        public virtual void ApplyTimeDrain(float seconds)
         {
-            if (_isCompleted || _isFailed) return;
-            
-            _isFailed = true;
-            _isActive = false;
-            
-            OnPuzzleFailed();
-            
-            if (showDebugInfo)
-            {
-                Debug.Log($"Puzzle {gameObject.name} failed - time expired");
-            }
+            if (!_running || seconds <= 0f) return;
+            _timer -= seconds;
+            // Skicka direkt tick så HUD uppdateras
+            GameEvents.TriggerPuzzleTimerTick(Mathf.Max(0, Mathf.CeilToInt(_timer)), Mathf.CeilToInt(timeLimit));
+            Debug.Log($"[{name}] TimeDrain: -{seconds:0.##}s → {_timer:0.##}s kvar");
         }
-        
-        /// <summary>
-        /// Återställer pusslet till ursprungligt tillstånd.
-        /// </summary>
-        public virtual void ResetPuzzle()
+
+        /// <summary>Stub för att spawna "falska ledtrådar". Override:a i specifika pussel om du vill göra mer.</summary>
+        public virtual void SpawnFakeClues(float durationSeconds)
         {
-            _isActive = false;
-            _isCompleted = false;
-            _isFailed = false;
-            _currentTime = timeLimit;
-            
-            OnPuzzleReset();
-            
-            if (showDebugInfo)
-            {
-                Debug.Log($"Puzzle {gameObject.name} reset");
-            }
+            Debug.Log($"[{name}] FakeClues for {durationSeconds:0.##}s (stub). Override in puzzle to implement visuals/logic.");
         }
-        
-        private void OnTimeExpired()
-        {
-            Fail();
-        }
-        
-        // Abstrakta metoder som subklasser måste implementera
-        /// <summary>
-        /// Anropas när pusslet startar.
-        /// </summary>
-        protected abstract void OnPuzzleStart();
-        
-        /// <summary>
-        /// Anropas när pusslet är löst.
-        /// </summary>
-        protected abstract void OnPuzzleComplete();
-        
-        /// <summary>
-        /// Anropas när pusslet misslyckas.
-        /// </summary>
-        protected abstract void OnPuzzleFailed();
-        
-        /// <summary>
-        /// Anropas när pusslet återställs.
-        /// </summary>
-        protected virtual void OnPuzzleReset()
-        {
-            // Standard-implementation - kan överskrivas
-        }
-        
-        // Unity Editor support
-        protected virtual void OnValidate()
-        {
-            // Säkerställ att goldTimeFraction är mellan 0 och 1
-            goldTimeFraction = Mathf.Clamp01(goldTimeFraction);
-            
-            // Säkerställ att timeLimit är positivt
-            timeLimit = Mathf.Max(0.1f, timeLimit);
-        }
-        
-        /// <summary>
-        /// Reducerar återstående tid om pusslet är aktivt.
-        /// </summary>
+
+        // === Hooks att override:a i pussel ===
+        protected virtual void OnStartPuzzle() { }
+        protected virtual void OnCompletePuzzle(float clearTime, bool gold) { }
+        protected virtual void OnFailed() { Debug.LogWarning($"{name}: puzzle failed (timeout)"); }
+
+        // === Back-compat hooks (existing subclasses override these) ===
+        protected virtual void OnPuzzleStart() { }
+        protected virtual void OnPuzzleComplete() { }
+        protected virtual void OnPuzzleFailed() { }
+        protected virtual void OnPuzzleReset() { }
+
+        // Back-compat API used by older SabotageManager implementations
         public void ReduceTimeRemaining(float seconds)
         {
-            if (seconds <= 0f) return;
-            if (!_isActive || _isCompleted || _isFailed) return;
-            _currentTime = Mathf.Max(0f, _currentTime - seconds);
+            ApplyTimeDrain(seconds);
         }
     }
-} 
+}

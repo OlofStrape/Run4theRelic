@@ -115,6 +115,9 @@ namespace Run4theRelic.Core
         {
             _currentPhase = newPhase;
             GameEvents.TriggerMatchPhaseChanged(newPhase);
+            // (Optional) HUD hook: skicka fasskifte och timer (0 för Final)
+            // If you add HUD listening for phase + timer, uncomment and implement handler
+            // GameEvents.TriggerPhaseChangedWithTimer?.Invoke(newPhase, _phaseTimer);
             
             Debug.Log($"Match phase changed to: {newPhase}");
             

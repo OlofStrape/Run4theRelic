@@ -13,6 +13,10 @@ namespace Run4theRelic.Core
         /// Triggas när ett pussel är löst. playerId = -1 för singleplayer.
         /// </summary>
         public static event Action<int, float> OnPuzzleCompleted; // playerId, clearTime
+        /// <summary>
+        /// Triggas varje sekund-tick för ett aktivt pussel (HUD-timer mm).
+        /// </summary>
+        public static event Action<int, int> OnPuzzleTimerTick; // remainingSeconds, limitSeconds
         
         /// <summary>
         /// Triggas när en spelare elimineras.
@@ -45,6 +49,10 @@ namespace Run4theRelic.Core
         /// Triggas när match-fasen ändras.
         /// </summary>
         public static event Action<MatchPhase> OnMatchPhaseChanged;
+        /// <summary>
+        /// Triggas när en sabotage-effekt appliceras (för HUD/logg): key och värde (sekunder mm).
+        /// </summary>
+        public static event Action<string, float> OnSabotaged;
         
         /// <summary>
         /// Triggas när matchen är slut.
@@ -55,6 +63,13 @@ namespace Run4theRelic.Core
         internal static void TriggerPuzzleCompleted(int playerId, float clearTime)
         {
             OnPuzzleCompleted?.Invoke(playerId, clearTime);
+        }
+        /// <summary>
+        /// Publik helper för att skicka timer-ticks (HUD).
+        /// </summary>
+        public static void TriggerPuzzleTimerTick(int remainingSeconds, int limitSeconds)
+        {
+            OnPuzzleTimerTick?.Invoke(remainingSeconds, limitSeconds);
         }
         
         internal static void TriggerPlayerEliminated(int playerId)
@@ -85,6 +100,13 @@ namespace Run4theRelic.Core
         internal static void TriggerMatchPhaseChanged(MatchPhase newPhase)
         {
             OnMatchPhaseChanged?.Invoke(newPhase);
+        }
+        /// <summary>
+        /// Publik helper för att skicka sabotage-notiser.
+        /// </summary>
+        public static void TriggerSabotaged(string key, float value)
+        {
+            OnSabotaged?.Invoke(key, value);
         }
         
         internal static void TriggerMatchEnded()
