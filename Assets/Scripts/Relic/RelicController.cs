@@ -1,5 +1,7 @@
 using UnityEngine;
 using Run4theRelic.Core;
+using System;
+using System.Reflection;
 
 namespace Run4theRelic.Relic
 {
@@ -14,8 +16,23 @@ namespace Run4theRelic.Relic
         [SerializeField] private float dropForce = 5f;
         [SerializeField] private LayerMask playerLayerMask = -1;
         
+        [Header("Hand Anchor")]
+        public Transform rightHandAnchor;
+        public string fallbackRightHandPath = "XR Origin/Camera Offset/RightHand Controller";
+        
         [Header("Movement Effects")]
-        [SerializeField] private float carrySlowMultiplier = 0.5f;
+        [SerializeField] private float carrySpeedMultiplier = 0.55f;
+        
+        [Header("Drop Logic")]
+        public float dropVelocityThreshold = 1.5f;
+        public float dropAngleBias = 0.25f;
+        public float dropImpulse = 2.5f;
+        
+        [Header("Audio")]
+        public AudioSource audioSource;
+        public AudioClip sfxPickup;
+        public AudioClip sfxDrop;
+        public AudioClip sfxExtract;
         
         [Header("Debug")]
         [SerializeField] private bool showDebugInfo = true;
@@ -26,6 +43,11 @@ namespace Run4theRelic.Relic
         private Vector3 _originalPosition;
         private Rigidbody _rigidbody;
         private Collider _collider;
+        
+        /// <summary>
+        /// Raised when this relic has been extracted successfully.
+        /// </summary>
+        public event Action OnExtracted;
         
         /// <summary>
         /// Is the Relic currently being carried by a player.
@@ -41,6 +63,16 @@ namespace Run4theRelic.Relic
         /// The original spawn position of the Relic.
         /// </summary>
         public Vector3 OriginalPosition => _originalPosition;
+        
+        private void Awake()
+        {
+            // Attempt to find a fallback right hand anchor if none provided
+            if (rightHandAnchor == null && !string.IsNullOrEmpty(fallbackRightHandPath))
+            {
+                Transform root = transform.root != null ? transform.root : transform;
+                rightHandAnchor = root.Find(fallbackRightHandPath);
+            }
+        }
         
         private void Start()
         {
@@ -91,8 +123,8 @@ namespace Run4theRelic.Relic
                 return;
             }
             
-            // Pick up the Relic
-            _carrier = player;
+            // Pick up the Relic - prefer stable right hand anchor if available
+            _carrier = rightHandAnchor != null ? rightHandAnchor : player;
             _isCarried = true;
             
             // Disable physics while carried
@@ -112,6 +144,12 @@ namespace Run4theRelic.Relic
             
             // Trigger pickup event
             GameEvents.TriggerRelicPickedUp(-1); // -1 = singleplayer
+            
+            // SFX
+            if (audioSource != null && sfxPickup != null)
+            {
+                audioSource.PlayOneShot(sfxPickup);
+            }
             
             if (showDebugInfo)
             {
@@ -151,6 +189,12 @@ namespace Run4theRelic.Relic
             // Trigger drop event
             GameEvents.TriggerRelicDropped(-1); // -1 = singleplayer
             
+            // SFX
+            if (audioSource != null && sfxDrop != null)
+            {
+                audioSource.PlayOneShot(sfxDrop);
+            }
+            
             if (showDebugInfo)
             {
                 Debug.Log($"Relic dropped by {_carrier?.name ?? "unknown"}");
@@ -189,6 +233,60 @@ namespace Run4theRelic.Relic
             if (showDebugInfo)
             {
                 Debug.Log("Relic force dropped");
+            }
+            
+            // SFX
+            if (audioSource != null && sfxDrop != null)
+            {
+                audioSource.PlayOneShot(sfxDrop);
+            }
+        }
+        
+        /// <summary>
+        /// Force drop with a specified impulse direction and magnitude.
+        /// </summary>
+        /// <param name="impulseDirection">World-space direction to push the relic upon drop.</param>
+        public void ForceDrop(Vector3 impulseDirection)
+        {
+            if (!_isCarried)
+            {
+                return;
+            }
+            
+            // Remove movement slow effect
+            ApplyCarrySlowEffect(false);
+            
+            // Re-enable physics and collider
+            if (_rigidbody != null)
+            {
+                _rigidbody.isKinematic = false;
+            }
+            
+            if (_collider != null)
+            {
+                _collider.enabled = true;
+            }
+            
+            // Reset state
+            _carrier = null;
+            _isCarried = false;
+            
+            // Apply impulse in blended direction
+            if (_rigidbody != null)
+            {
+                Vector3 dir = impulseDirection.sqrMagnitude > 0.0001f ? impulseDirection.normalized : Vector3.up;
+                _rigidbody.AddForce(dir * dropImpulse, ForceMode.Impulse);
+            }
+            
+            if (showDebugInfo)
+            {
+                Debug.Log("Relic force dropped with impulse");
+            }
+            
+            // SFX
+            if (audioSource != null && sfxDrop != null)
+            {
+                audioSource.PlayOneShot(sfxDrop);
             }
         }
         
@@ -245,15 +343,21 @@ namespace Run4theRelic.Relic
             if (!_isCarried) return;
             
             // Check if collision is hard enough to drop the Relic
-            float impactForce = collision.relativeVelocity.magnitude;
-            if (impactForce > dropForce)
+            float impactSpeed = collision.relativeVelocity.magnitude;
+            if (impactSpeed > dropVelocityThreshold)
             {
+                // Blend between carrier forward and collision normal
+                Vector3 forward = _carrier != null ? _carrier.forward : transform.forward;
+                Vector3 normal = (collision.contacts != null && collision.contacts.Length > 0) ? collision.contacts[0].normal : Vector3.up;
+                Vector3 blended = Vector3.Slerp(forward, normal, Mathf.Clamp01(dropAngleBias));
+                blended = (blended + Vector3.up * 0.15f).normalized;
+
                 if (showDebugInfo)
                 {
-                    Debug.Log($"Hard collision detected ({impactForce:F2} force), dropping Relic");
+                    Debug.Log($"Hard collision detected ({impactSpeed:F2} m/s), force dropping Relic");
                 }
                 
-                Drop();
+                ForceDrop(blended);
             }
         }
         
@@ -278,7 +382,10 @@ namespace Run4theRelic.Relic
             // Ensure values are positive
             pickupRadius = Mathf.Max(0.1f, pickupRadius);
             dropForce = Mathf.Max(0.1f, dropForce);
-            carrySlowMultiplier = Mathf.Clamp01(carrySlowMultiplier);
+            carrySpeedMultiplier = Mathf.Clamp(carrySpeedMultiplier, 0.2f, 1f);
+            dropVelocityThreshold = Mathf.Max(0.1f, dropVelocityThreshold);
+            dropAngleBias = Mathf.Clamp01(dropAngleBias);
+            dropImpulse = Mathf.Max(0.1f, dropImpulse);
         }
         
         // Gizmos for easier setup in editor

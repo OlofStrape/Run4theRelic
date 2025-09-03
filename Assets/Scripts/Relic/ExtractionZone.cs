@@ -175,6 +175,15 @@ namespace Run4theRelic.Relic
             // Trigger victory event
             GameEvents.TriggerRelicExtracted(-1); // -1 = singleplayer
             
+            // Notify relic and play extract SFX if available
+            if (_extractingRelic != null)
+            {
+                _extractingRelic.NotifyExtracted();
+            }
+            
+            // Log WIN for acceptance visibility
+            Debug.Log("WIN");
+            
             // Reset extraction state
             _isExtracting = false;
             _extractionTimer = 0f;
