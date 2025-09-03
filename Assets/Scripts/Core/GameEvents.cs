@@ -13,10 +13,8 @@ namespace Run4theRelic.Core
         /// Triggas när ett pussel är löst. playerId = -1 för singleplayer.
         /// </summary>
         public static event Action<int, float> OnPuzzleCompleted; // playerId, clearTime
-        
         /// <summary>
-        /// Triggas varje sekund medan ett pussel är aktivt.
-        /// Parametrar: sekunder kvar (avrundat uppåt), samt ursprunglig limit i sekunder.
+        /// Triggas varje sekund medan ett pussel är aktivt. Parametrar: sekunder kvar (avrundat uppåt), samt ursprunglig limit i sekunder.
         /// </summary>
         public static event Action<int, int> OnPuzzleTimerTick; // secondsRemaining, secondsLimit
         
@@ -51,7 +49,6 @@ namespace Run4theRelic.Core
         /// Triggas när match-fasen ändras.
         /// </summary>
         public static event Action<MatchPhase> OnMatchPhaseChanged;
-        
         /// <summary>
         /// Triggas när matchen är slut.
         /// </summary>
@@ -68,7 +65,6 @@ namespace Run4theRelic.Core
         {
             OnPuzzleCompleted?.Invoke(playerId, clearTime);
         }
-
         internal static void TriggerPuzzleTimerTick(int secondsRemaining, int secondsLimit)
         {
             OnPuzzleTimerTick?.Invoke(secondsRemaining, secondsLimit);
@@ -103,7 +99,6 @@ namespace Run4theRelic.Core
         {
             OnMatchPhaseChanged?.Invoke(newPhase);
         }
-        
         internal static void TriggerMatchEnded()
         {
             OnMatchEnded?.Invoke();
