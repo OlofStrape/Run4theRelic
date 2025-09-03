@@ -80,3 +80,18 @@
 
 ## Nästa Steg
 Efter setup, se `Documentation/TASKS.md` för MVP-uppgifter. 
+
+## Laser Redirect (demo)
+Så här kör du den inbyggda demobyggaren och testar pusslet:
+
+1. Öppna en tom scen eller valfri testszen.
+2. Gå till menyn: `Relic > Build Laser Redirect (demo)`.
+3. Detta skapar ett litet demo-rum under `LaserRedirect_Demo` med:
+   - **LaserEmitter** med röd `LineRenderer`
+   - **2 speglar** (Cubes med `LaserMirror` + Collider)
+   - **LaserReceiver** (Cube med `LaserReceiver`)
+   - **LaserRedirectController** länkad till receivern
+4. Se till att `LaserEmitter.hitMask` står på `Default` (sätts av buildern).
+5. Kör scenen. Rota/greppa speglarna (XRI hanterar manipulering) för att styra laserstrålen.
+6. Håll lasern på `LaserReceiver` tills dess interna timer (1.5s) fylls. När det sker ropas controllerns completion och pusslet blir clearat.
+7. (Valfritt) Lägg till `LaserDebugGizmo` på emittern för att rita små sfärer vid träffpunkter.
