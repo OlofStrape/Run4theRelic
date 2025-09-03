@@ -12,11 +12,16 @@ namespace Run4theRelic.UI
 		[SerializeField] private Text targetText;
 		[SerializeField] private string prefix = "TOKENS ";
 		[SerializeField] private Color textColor = Color.cyan;
+		[SerializeField] private ThemeConfig themeConfig;
 
 		void Awake()
 		{
 			if (!targetText)
 				targetText = GetComponentInChildren<Text>(true);
+			if (themeConfig)
+			{
+				textColor = themeConfig.accent;
+			}
 		}
 
 		void OnEnable()

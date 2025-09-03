@@ -14,6 +14,7 @@ namespace Run4theRelic.UI
 		[SerializeField] private Color normalColor = Color.white;
 		[SerializeField] private Color warningColor = new Color(1f, 0.85f, 0.25f);
 		[SerializeField] private Color dangerColor = new Color(1f, 0.4f, 0.4f);
+		[SerializeField] private ThemeConfig themeConfig;
 		[SerializeField] [Range(0.05f, 0.5f)] private float warningThreshold = 0.3f;
 		[SerializeField] [Range(0.01f, 0.3f)] private float dangerThreshold = 0.1f;
 
@@ -23,6 +24,12 @@ namespace Run4theRelic.UI
 			{
 				// Try find a child Text (e.g., from UIBootstrap TimerRoot/Text)
 				targetText = GetComponentInChildren<Text>(true);
+			}
+			if (themeConfig)
+			{
+				normalColor = themeConfig.textPrimary;
+				warningColor = themeConfig.warning;
+				dangerColor = themeConfig.danger;
 			}
 		}
 
