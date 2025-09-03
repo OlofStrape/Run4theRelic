@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Run4theRelic.Core;
 
 namespace Run4theRelic.Sabotage
 {
@@ -51,7 +52,7 @@ namespace Run4theRelic.Sabotage
         }
         
         /// <summary>
-        /// Trigger fog effect on a specific target.
+        /// Trigger fog effect on a specific target (GameObject).
         /// </summary>
         /// <param name="target">The GameObject to apply fog to.</param>
         /// <param name="duration">Duration of the fog effect in seconds.</param>
@@ -93,6 +94,55 @@ namespace Run4theRelic.Sabotage
                 {
                     Debug.Log($"Triggered fog effect on {target.name} for {duration}s");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Apply fog to the local player (editor/dev convenience).
+        /// </summary>
+        public void ApplyFog()
+        {
+            if (!PlayerRegistry.TryGetLocal(out var local))
+            {
+                Debug.LogWarning("ApplyFog(): No local player registered");
+                return;
+            }
+            ApplyFog(local.id, defaultFogDuration);
+        }
+
+        /// <summary>
+        /// Apply fog to a specific player id via PlayerRegistry.
+        /// Only the hit player should receive the sabotage HUD event.
+        /// </summary>
+        public void ApplyFog(int targetPlayerId, float duration = -1f)
+        {
+            if (duration < 0f) duration = defaultFogDuration;
+
+            var receiver = PlayerRegistry.GetReceiver(targetPlayerId);
+            if (receiver == null)
+            {
+                Debug.LogWarning($"ApplyFog({targetPlayerId}): receiver not found");
+                return;
+            }
+
+            receiver.SetFog(true);
+            receiver.NotifySabotaged("fog", duration);
+
+            // Schedule clear using coroutine on receiver root
+            StartCoroutine(ClearAfterDuration(receiver, duration));
+
+            if (showDebugInfo)
+            {
+                Debug.Log($"Applied fog to player {targetPlayerId} for {duration}s");
+            }
+        }
+
+        private IEnumerator ClearAfterDuration(SabotageReceiver receiver, float duration)
+        {
+            yield return new WaitForSeconds(duration);
+            if (receiver != null)
+            {
+                receiver.SetFog(false);
             }
         }
         

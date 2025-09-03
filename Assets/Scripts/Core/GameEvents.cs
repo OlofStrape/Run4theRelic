@@ -8,6 +8,13 @@ namespace Run4theRelic.Core
     /// </summary>
     public static class GameEvents
     {
+        // Sabotage-events
+        /// <summary>
+        /// Triggas när den lokala spelaren blir saboterad. Typ t.ex. "fog" och varaktighet.
+        /// Denna ska endast triggas på den spelare som faktiskt träffas (lokal klient i dev-sim).
+        /// </summary>
+        public static event Action<string, float> OnSabotaged; // type, duration
+
         // Pussel-events
         /// <summary>
         /// Triggas när ett pussel är löst. playerId = -1 för singleplayer.
@@ -90,6 +97,14 @@ namespace Run4theRelic.Core
         internal static void TriggerMatchEnded()
         {
             OnMatchEnded?.Invoke();
+        }
+
+        /// <summary>
+        /// Trigga sabotage-notis lokalt (HUD m.m.).
+        /// </summary>
+        internal static void TriggerSabotaged(string type, float duration)
+        {
+            OnSabotaged?.Invoke(type, duration);
         }
     }
     
