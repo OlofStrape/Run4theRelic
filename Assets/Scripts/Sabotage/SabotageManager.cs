@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Run4theRelic.Core;
 
 namespace Run4theRelic.Sabotage
 {
@@ -94,6 +95,27 @@ namespace Run4theRelic.Sabotage
                     Debug.Log($"Triggered fog effect on {target.name} for {duration}s");
                 }
             }
+        }
+
+        /// <summary>
+        /// Apply fog sabotage and emit sabotage-event.
+        /// </summary>
+        /// <param name="target">Target GameObject.</param>
+        /// <param name="fogDuration">Duration in seconds (uses default if < 0).</param>
+        public void ApplyFog(GameObject target, float fogDuration = -1f)
+        {
+            if (fogDuration < 0f)
+            {
+                fogDuration = defaultFogDuration;
+            }
+
+            // Emit sabotage event before activating fog
+            GameEvents.OnSabotaged?.Invoke("fog", fogDuration);
+
+            // TODO: Stöd för fler sabotage-typer i framtiden (ljudstörning, blackout, etc.)
+
+            // Delegate to existing fog trigger
+            TriggerFog(target, fogDuration);
         }
         
         /// <summary>

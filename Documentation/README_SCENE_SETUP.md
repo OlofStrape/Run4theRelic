@@ -80,3 +80,26 @@
 
 ## Nästa Steg
 Efter setup, se `Documentation/TASKS.md` för MVP-uppgifter. 
+
+## World-space HUD
+Så här lägger du till och testar HUD som visar fas, timer och sabotage-meddelanden:
+
+1. Lägg till ett tomt GameObject i scenen och döp det till `HUD`.
+2. Lägg till komponenten `HUDController` på `HUD`-objektet.
+   - Den skapar sina world-space texter själv vid runtime.
+   - Den försöker använda TextMeshPro om det finns installerat, annars används vanlig `TextMesh` (3D-text).
+   - För att lägga till TMP: öppna Package Manager och installera "TextMeshPro".
+3. Justera i Inspector vid behov:
+   - `distance` (standard 1.2 m framför kameran)
+   - `localOffset` (standard 0.25 m upp)
+   - `timerColor` (standard grön→gul→röd)
+4. Testa i Play-läge:
+   - Vid start: se fasen "COUNTDOWN" och en nedräkning (3..2..1).
+   - I Pussel 1–3: se timer ticka ner och färgskala från grön till röd.
+   - Trigga `SabotageManager.ApplyFog()` (via debug-knapp eller Inspector) för att se rött "SABOTAGED!" som flashar i ~2 s och fade:ar ut.
+
+Unity-teststeg (utan TMP och med TMP):
+- Öppna projektet, se att scenen har XR Origin + pussel.
+- Lägg tomt GO `HUD` och add `HUDController`.
+- Play → se fas och timer uppdateras; lös Pussel 1–3 och se färgskift.
+- Anropa `ApplyFog()` i `SabotageManager` → se röd "SABOTAGED!" flash som fade:ar ut.

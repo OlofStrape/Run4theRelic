@@ -21,6 +21,7 @@ namespace Run4theRelic.Puzzles
         protected bool _isActive;
         protected bool _isCompleted;
         protected bool _isFailed;
+        private int _lastWholeSecond = int.MaxValue;
         
         /// <summary>
         /// Aktuell tid kvar på pusslet.
@@ -46,6 +47,11 @@ namespace Run4theRelic.Puzzles
         /// Gold time threshold (tid för optimal completion).
         /// </summary>
         public float GoldTimeThreshold => timeLimit * goldTimeFraction;
+
+        /// <summary>
+        /// Publik gräns i sekunder för timer (avrundad uppåt).
+        /// </summary>
+        public int SecondsLimit => Mathf.CeilToInt(timeLimit);
         
         /// <summary>
         /// Är pusslet löst inom gold time.
@@ -66,6 +72,14 @@ namespace Run4theRelic.Puzzles
             
             // Uppdatera timer
             _currentTime -= Time.deltaTime;
+
+            // Skicka sekund-ticks vid nytt heltal
+            int secondsRemaining = Mathf.Max(0, Mathf.CeilToInt(_currentTime));
+            if (secondsRemaining != _lastWholeSecond)
+            {
+                _lastWholeSecond = secondsRemaining;
+                GameEvents.OnPuzzleTimerTick?.Invoke(secondsRemaining, SecondsLimit);
+            }
             
             // Kontrollera om tiden är slut
             if (_currentTime <= 0f)
