@@ -83,6 +83,16 @@ namespace Run4theRelic.Relic
             }
         }
         
+        private void OnEnable()
+        {
+            GameEvents.OnRelicExtracted += HandleRelicExtracted;
+        }
+        
+        private void OnDisable()
+        {
+            GameEvents.OnRelicExtracted -= HandleRelicExtracted;
+        }
+        
         private void Update()
         {
             if (_isCarried && _carrier != null)
@@ -420,6 +430,11 @@ namespace Run4theRelic.Relic
         {
             if (audioSource == null || clip == null) return;
             audioSource.PlayOneShot(clip);
+        }
+        
+        private void HandleRelicExtracted(int playerId)
+        {
+            PlayClip(sfxExtract);
         }
     }
 } 
