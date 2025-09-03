@@ -15,6 +15,12 @@ namespace Run4theRelic.Core
         public static event Action<int, float> OnPuzzleCompleted; // playerId, clearTime
         
         /// <summary>
+        /// Triggas varje sekund medan ett pussel är aktivt.
+        /// Parametrar: sekunder kvar (avrundat uppåt), samt ursprunglig limit i sekunder.
+        /// </summary>
+        public static event Action<int, int> OnPuzzleTimerTick; // secondsRemaining, secondsLimit
+        
+        /// <summary>
         /// Triggas när en spelare elimineras.
         /// </summary>
         public static event Action<int> OnPlayerEliminated; // playerId
@@ -55,6 +61,11 @@ namespace Run4theRelic.Core
         internal static void TriggerPuzzleCompleted(int playerId, float clearTime)
         {
             OnPuzzleCompleted?.Invoke(playerId, clearTime);
+        }
+
+        internal static void TriggerPuzzleTimerTick(int secondsRemaining, int secondsLimit)
+        {
+            OnPuzzleTimerTick?.Invoke(secondsRemaining, secondsLimit);
         }
         
         internal static void TriggerPlayerEliminated(int playerId)

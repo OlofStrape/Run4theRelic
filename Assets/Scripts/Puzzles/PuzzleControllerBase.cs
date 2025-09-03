@@ -24,6 +24,9 @@ namespace Run4theRelic.Puzzles
         protected bool _isCompleted;
         protected bool _isFailed;
         
+        // Tick-hantering
+        private float _nextTickAt;
+        
         /// <summary>
         /// Aktuell tid kvar på pusslet.
         /// </summary>
@@ -69,6 +72,15 @@ namespace Run4theRelic.Puzzles
             // Uppdatera timer
             _currentTime -= Time.deltaTime;
             
+            // Sänd tick en gång per sekund (avrundat uppåt för återstående tid)
+            if (Time.time >= _nextTickAt)
+            {
+                _nextTickAt = Mathf.Floor(Time.time) + 1f;
+                int secondsRemaining = Mathf.CeilToInt(Mathf.Max(0f, _currentTime));
+                int secondsLimit = Mathf.RoundToInt(timeLimit);
+                GameEvents.TriggerPuzzleTimerTick(secondsRemaining, secondsLimit);
+            }
+            
             // Kontrollera om tiden är slut
             if (_currentTime <= 0f)
             {
@@ -93,6 +105,7 @@ namespace Run4theRelic.Puzzles
             _isCompleted = false;
             _isFailed = false;
             _currentTime = timeLimit;
+            _nextTickAt = Mathf.Floor(Time.time) + 1f;
             
             OnPuzzleStart();
             
