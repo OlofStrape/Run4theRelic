@@ -50,8 +50,19 @@ namespace Run4theRelic.Sabotage
                 fogRoot = CreateFallbackFog();
             }
 
+            // Aktivera rot och starta alla ParticleSystems under den
             fogRoot.SetActive(true);
+            var systems = fogRoot.GetComponentsInChildren<ParticleSystem>(true);
+            for (int i = 0; i < systems.Length; i++)
+            {
+                systems[i].Play(true);
+            }
             yield return new WaitForSeconds(duration);
+            // Stoppa emission och stäng av rot
+            for (int i = 0; i < systems.Length; i++)
+            {
+                systems[i].Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            }
             fogRoot.SetActive(false);
             _fogRoutine = null;
         }
@@ -71,6 +82,8 @@ namespace Run4theRelic.Sabotage
                 new[] { new GradientAlphaKey(0.0f, 0f), new GradientAlphaKey(0.3f, 0.2f), new GradientAlphaKey(0.3f, 0.8f), new GradientAlphaKey(0.0f, 1f) }
             );
             c.color = new ParticleSystem.MinMaxGradient(grad);
+            // Startläge: inaktiv rot, system startas på ApplyFog
+            go.SetActive(false);
             ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             return go;
         }
