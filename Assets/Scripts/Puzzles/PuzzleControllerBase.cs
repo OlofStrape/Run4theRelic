@@ -76,11 +76,7 @@ namespace Run4theRelic.Puzzles
 
             if (_timer <= 0f)
             {
-                _running = false;
-                _isFailed = true;
-                if (Active == this) Active = null;
-                OnFailed();
-                OnPuzzleFailed(); // back-compat
+                Fail();
             }
         }
 
@@ -115,6 +111,19 @@ namespace Run4theRelic.Puzzles
             if (Active == this) Active = null;
             OnCompletePuzzle(clearTime, gold);
             OnPuzzleComplete(); // back-compat
+        }
+
+        /// <summary>
+        /// Marks the puzzle as failed. Stops the timer and triggers failure hooks.
+        /// </summary>
+        protected void Fail()
+        {
+            if (!_running) return;
+            _running = false;
+            _isFailed = true;
+            if (Active == this) Active = null;
+            OnFailed();
+            OnPuzzleFailed(); // back-compat
         }
 
         // === Sabotage-hooks som Manager kan anropa ===
