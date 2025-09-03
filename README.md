@@ -1,24 +1,9 @@
-# Run4theRelic
+# Unity Project Bootstrap (Text-Only)
 
-## Översikt
-VR-arenapussel där spelare tävlar genom 3 barriärpussel → gold-time sabotage → Relic-final → extraktion. Matchtid 5–8 minuter.
+This repository contains a text-only Unity bootstrap with documentation and compile-ready C# scripts targeting Unity 2022.3.
 
-## Krav
-- Unity 2022.3 LTS
-- Universal Render Pipeline (URP)
-- OpenXR (PC)
+- Editor: Unity 2022.3 LTS
+- Scope: Text files only (no .unity, .prefab, .meta)
+- Structure: Assets/Scripts, Assets/Scenes, Packages, ProjectSettings, Documentation
 
-## Snabbstart
-1. Öppna projektet i Unity Hub
-2. Aktivera OpenXR (PC) i Project Settings > XR Plug-in Management
-3. Importera XRI samples från Package Manager
-4. Lägg till XR Origin (Action-based) i scenen
-5. Följ scen-guiden i `Documentation/README_SCENE_SETUP.md`
-
-## Roadmap
-- **M1**: MVP - Grundläggande pussel och spelmekaniker
-- **M2**: Polish - Visuella förbättringar och UX
-- **M3**: Nätverk - Multiplayer-funktionalitet
-
-## Utveckling
-Se `AGENTS.md` för utvecklingsregler och AI-agent-riktlinjer. 
+See `Documentation/PROJECT_BRIEF.md` and `Documentation/ARCHITECTURE.md` for details.

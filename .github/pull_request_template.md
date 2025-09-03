@@ -1,44 +1,21 @@
-# Pull Request: [Titel]
+## Summary
 
-## Vad & Varför
-Beskriv vad som ändrats och varför det behövs.
+Describe the purpose of this PR.
 
-## Ändringar
-- [ ] Ny funktionalitet
-- [ ] Bugfix
-- [ ] Dokumentation
-- [ ] Refaktorering
-- [ ] Annat: _________
+## Files Changed
 
-### Filändringar
-Lista alla ändrade filer:
-- `path/to/file1.cs` - Vad ändrades
-- `path/to/file2.md` - Vad ändrades
+<!-- This PR was generated to include only text files. -->
 
-## Teststeg
-1. [ ] Öppna projektet i Unity 2022.3 LTS
-2. [ ] Aktivera OpenXR (PC) i Project Settings
-3. [ ] Importera XRI samples från Package Manager
-4. [ ] Lägg till XR Origin (Action-based) i scenen
-5. [ ] Skapa tre pussel-rum enligt scen-guiden
-6. [ ] Placera scripts enligt dokumentationen
-7. [ ] Klicka Play och verifiera funktionalitet
+## Unity Test Steps (2022.3)
 
-## Acceptance
-- [ ] Kompilerar i Unity 2022.3 LTS utan fel
-- [ ] Endast textfiler i diff (inga .unity/.prefab/.meta)
-- [ ] Publika API:er följer Documentation/API_CONTRACTS.md
-- [ ] Kod har XML-dokumentation
-- [ ] Funktioner testade enligt teststeg ovan
+1. Open project in Unity 2022.3 LTS
+2. Let packages resolve
+3. Create an empty scene
+4. Add `Core/MatchOrchestrator` and at least one puzzle controller
+5. Enter Play Mode and verify console logs
 
-## Screenshots/Videos
-Lägg till relevanta bilder eller videor här.
+## Acceptance Checklist
 
-## Relaterade Issues
-Fixes #(issue number)
-
-## Checklista för Review
-- [ ] Kod följer projektets kodstil
-- [ ] Alla tests passerar
-- [ ] Dokumentation uppdaterad
-- [ ] Inga binära Unity-filer inkluderade 
+- [ ] Compiles on Unity 2022.3 LTS
+- [ ] Only text files added (no .unity/.prefab/.meta)
+- [ ] XML docs present on public APIs
