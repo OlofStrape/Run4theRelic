@@ -113,8 +113,15 @@ public class RelicController : MonoBehaviour
 {
     public void PickUp(Transform player);
     public void Drop();
+    public void ForceDrop();
     public bool IsCarried { get; }
     public Transform Carrier { get; }
+    public Vector3 OriginalPosition { get; }
+    // Inspector fields:
+    // - Transform rightHandAnchor, fallbackAnchor
+    // - float carrySpeedMultiplier = 0.55f
+    // - float dropVelocityThreshold, dropAngleBias, dropImpulse
+    // - AudioSource audioSource; AudioClip sfxPickup, sfxDrop, sfxExtract
 }
 ```
 
@@ -134,8 +141,17 @@ public class ExtractionZone : MonoBehaviour
 public class PlayerMovementHook : MonoBehaviour
 {
     public void SetCarrySlow(bool isCarrying);
+    public void SetCarrySlow(bool isCarrying, float multiplierOverride);
     public void SetMoveSpeed(float speed);
     public float BaseMoveSpeed { get; }
+}
+```
+
+### RelicAura
+```csharp
+public class RelicAura : MonoBehaviour
+{
+    // Attach with LineRenderer; draws a pulsing ring around Relic
 }
 ```
 

@@ -1,5 +1,7 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 using Run4theRelic.Core;
+using Run4theRelic.Player;
 
 namespace Run4theRelic.Relic
 {
@@ -11,11 +13,30 @@ namespace Run4theRelic.Relic
     {
         [Header("Relic Settings")]
         [SerializeField] private float pickupRadius = 1f;
-        [SerializeField] private float dropForce = 5f;
         [SerializeField] private LayerMask playerLayerMask = -1;
         
-        [Header("Movement Effects")]
-        [SerializeField] private float carrySlowMultiplier = 0.5f;
+        [Header("Carry & Anchor")]
+        [Tooltip("Primary anchor on the player's right hand.")]
+        [SerializeField] private Transform rightHandAnchor;
+        [Tooltip("Fallback anchor if right hand is missing; typically the player's root or head.")]
+        [SerializeField] private Transform fallbackAnchor;
+        [Tooltip("Multiplier applied to player move speed while carrying.")]
+        [SerializeField] private float carrySpeedMultiplier = 0.55f;
+        
+        [Header("Drop Behaviour")]
+        [Tooltip("Relative velocity magnitude threshold to auto-drop on collision.")]
+        [SerializeField] private float dropVelocityThreshold = 4.0f;
+        [Tooltip("Dot product angle bias; lower dot (more opposing) increases drop likelihood.")]
+        [Range(-1f, 1f)]
+        [SerializeField] private float dropAngleBias = -0.2f;
+        [Tooltip("Impulse applied to the Relic when dropped (forward + slight up).")]
+        [SerializeField] private float dropImpulse = 5f;
+        
+        [Header("Audio")] 
+        [SerializeField] private AudioSource audioSource;
+        [SerializeField] private AudioClip sfxPickup;
+        [SerializeField] private AudioClip sfxDrop;
+        [SerializeField] private AudioClip sfxExtract;
         
         [Header("Debug")]
         [SerializeField] private bool showDebugInfo = true;
@@ -26,6 +47,8 @@ namespace Run4theRelic.Relic
         private Vector3 _originalPosition;
         private Rigidbody _rigidbody;
         private Collider _collider;
+        private float _gripReleaseTimer;
+        private bool _gripWasReleasedTogether;
         
         /// <summary>
         /// Is the Relic currently being carried by a player.
@@ -64,8 +87,20 @@ namespace Run4theRelic.Relic
         {
             if (_isCarried && _carrier != null)
             {
-                // Follow the carrier
-                transform.position = _carrier.position + Vector3.up * 0.5f;
+                // Follow the carrier via anchor if available
+                Transform anchor = ResolveAnchor();
+                if (anchor != null)
+                {
+                    transform.position = anchor.position;
+                    transform.rotation = anchor.rotation;
+                }
+                else
+                {
+                    transform.position = _carrier.position + Vector3.up * 0.5f;
+                }
+                
+                // Grip-check while carrying
+                UpdateGripCheckAndMaybeForceDrop();
             }
         }
         
@@ -109,9 +144,12 @@ namespace Run4theRelic.Relic
             
             // Apply movement slow effect
             ApplyCarrySlowEffect(true);
+            _gripReleaseTimer = 0f;
+            _gripWasReleasedTogether = false;
             
             // Trigger pickup event
             GameEvents.TriggerRelicPickedUp(-1); // -1 = singleplayer
+            PlayClip(sfxPickup);
             
             if (showDebugInfo)
             {
@@ -134,11 +172,12 @@ namespace Run4theRelic.Relic
             {
                 _rigidbody.isKinematic = false;
                 
-                // Apply drop force
+                // Apply drop impulse
                 if (_carrier != null)
                 {
-                    Vector3 dropDirection = (_carrier.forward + Vector3.up * 0.5f).normalized;
-                    _rigidbody.AddForce(dropDirection * dropForce, ForceMode.Impulse);
+                    Vector3 forward = _carrier.forward;
+                    Vector3 dropDirection = (forward + Vector3.up * 0.25f).normalized;
+                    _rigidbody.AddForce(dropDirection * dropImpulse, ForceMode.Impulse);
                 }
             }
             
@@ -150,6 +189,7 @@ namespace Run4theRelic.Relic
             
             // Trigger drop event
             GameEvents.TriggerRelicDropped(-1); // -1 = singleplayer
+            PlayClip(sfxDrop);
             
             if (showDebugInfo)
             {
@@ -185,6 +225,8 @@ namespace Run4theRelic.Relic
             // Reset state
             _carrier = null;
             _isCarried = false;
+            _gripReleaseTimer = 0f;
+            _gripWasReleasedTogether = false;
             
             if (showDebugInfo)
             {
@@ -231,7 +273,14 @@ namespace Run4theRelic.Relic
             PlayerMovementHook movementHook = _carrier.GetComponent<PlayerMovementHook>();
             if (movementHook != null)
             {
-                movementHook.SetCarrySlow(isCarrying);
+                if (isCarrying)
+                {
+                    movementHook.SetCarrySlow(true, carrySpeedMultiplier);
+                }
+                else
+                {
+                    movementHook.SetCarrySlow(false);
+                }
             }
             else
             {
@@ -245,12 +294,17 @@ namespace Run4theRelic.Relic
             if (!_isCarried) return;
             
             // Check if collision is hard enough to drop the Relic
-            float impactForce = collision.relativeVelocity.magnitude;
-            if (impactForce > dropForce)
+            float relativeSpeed = collision.relativeVelocity.magnitude;
+            Vector3 carrierForward = _carrier != null ? _carrier.forward : Vector3.forward;
+            Vector3 impactDirection = -collision.relativeVelocity.normalized; // direction towards carrier
+            float angleDot = Vector3.Dot(carrierForward, impactDirection);
+            bool angleOpposingEnough = angleDot <= dropAngleBias; // more opposing or sideways
+            
+            if (relativeSpeed >= dropVelocityThreshold && angleOpposingEnough)
             {
                 if (showDebugInfo)
                 {
-                    Debug.Log($"Hard collision detected ({impactForce:F2} force), dropping Relic");
+                    Debug.Log($"Collision drop: speed={relativeSpeed:F2} dot={angleDot:F2} -> dropping");
                 }
                 
                 Drop();
@@ -277,8 +331,9 @@ namespace Run4theRelic.Relic
         {
             // Ensure values are positive
             pickupRadius = Mathf.Max(0.1f, pickupRadius);
-            dropForce = Mathf.Max(0.1f, dropForce);
-            carrySlowMultiplier = Mathf.Clamp01(carrySlowMultiplier);
+            dropImpulse = Mathf.Max(0.1f, dropImpulse);
+            carrySpeedMultiplier = Mathf.Clamp01(carrySpeedMultiplier);
+            dropVelocityThreshold = Mathf.Max(0.1f, dropVelocityThreshold);
         }
         
         // Gizmos for easier setup in editor
@@ -294,12 +349,77 @@ namespace Run4theRelic.Relic
             if (_isCarried && _carrier != null)
             {
                 Gizmos.color = Color.green;
-                Gizmos.DrawLine(transform.position, _carrier.position);
+                Transform anchor = ResolveAnchor();
+                Vector3 anchorPos = anchor != null ? anchor.position : _carrier.position;
+                Gizmos.DrawLine(transform.position, anchorPos);
             }
             
             // Draw original spawn position
             Gizmos.color = Color.blue;
             Gizmos.DrawWireCube(_originalPosition, Vector3.one * 0.3f);
+        }
+
+        private Transform ResolveAnchor()
+        {
+            if (_carrier == null) return null;
+            if (rightHandAnchor != null) return rightHandAnchor;
+            if (fallbackAnchor != null) return fallbackAnchor;
+            return _carrier;
+        }
+
+        private void UpdateGripCheckAndMaybeForceDrop()
+        {
+            // Expect an InputAction named "Grip" on the carrier or its children
+            if (_carrier == null) return;
+            
+            bool leftGripPressed = false;
+            bool rightGripPressed = false;
+            
+            // Try find PlayerInput for action map reading
+            PlayerInput playerInput = _carrier.GetComponentInParent<PlayerInput>();
+            if (playerInput != null)
+            {
+                // Actions may be named "GripLeft"/"GripRight" or a composite "Grip"
+                InputAction gripLeft = playerInput.actions.FindAction("GripLeft", false);
+                InputAction gripRight = playerInput.actions.FindAction("GripRight", false);
+                InputAction grip = playerInput.actions.FindAction("Grip", false);
+                if (gripLeft != null) leftGripPressed = gripLeft.ReadValue<float>() > 0.5f;
+                if (gripRight != null) rightGripPressed = gripRight.ReadValue<float>() > 0.5f;
+                if (grip != null)
+                {
+                    float v = grip.ReadValue<float>();
+                    // If a single composite, treat as both grips
+                    leftGripPressed |= v > 0.5f;
+                    rightGripPressed |= v > 0.5f;
+                }
+            }
+            
+            bool bothReleased = !leftGripPressed && !rightGripPressed;
+            if (bothReleased)
+            {
+                _gripReleaseTimer += Time.deltaTime;
+                _gripWasReleasedTogether = true;
+                if (_gripReleaseTimer > 0.5f)
+                {
+                    if (showDebugInfo)
+                    {
+                        Debug.Log("Grip released for >0.5s while carrying → ForceDrop()");
+                    }
+                    ForceDrop();
+                }
+            }
+            else
+            {
+                // Reset if any grip is pressed again
+                _gripReleaseTimer = 0f;
+                _gripWasReleasedTogether = false;
+            }
+        }
+
+        private void PlayClip(AudioClip clip)
+        {
+            if (audioSource == null || clip == null) return;
+            audioSource.PlayOneShot(clip);
         }
     }
 } 
