@@ -28,6 +28,11 @@ namespace Run4theRelic.Puzzles
         private float _nextTickAt;
         
         /// <summary>
+        /// Nuvarande aktiva pussel för enkel access.
+        /// </summary>
+        public static PuzzleControllerBase Active { get; private set; }
+        
+        /// <summary>
         /// Aktuell tid kvar på pusslet.
         /// </summary>
         public float CurrentTime => _currentTime;
@@ -106,6 +111,7 @@ namespace Run4theRelic.Puzzles
             _isFailed = false;
             _currentTime = timeLimit;
             _nextTickAt = Mathf.Floor(Time.time) + 1f;
+            Active = this;
             
             OnPuzzleStart();
             
@@ -113,6 +119,9 @@ namespace Run4theRelic.Puzzles
             {
                 Debug.Log($"Puzzle {gameObject.name} started with {timeLimit}s time limit");
             }
+            
+            // Initial HUD-tick
+            GameEvents.TriggerPuzzleTimerTick(Mathf.CeilToInt(Mathf.Max(0f, _currentTime)), Mathf.RoundToInt(timeLimit));
         }
         
         /// <summary>
@@ -184,6 +193,7 @@ namespace Run4theRelic.Puzzles
                 string timeStatus = isGoldTime ? "GOLD TIME!" : "Normal completion";
                 Debug.Log($"Puzzle {gameObject.name} completed in {clearTime:F2}s - {timeStatus}");
             }
+            if (Active == this) Active = null;
         }
         
         /// <summary>
@@ -202,6 +212,7 @@ namespace Run4theRelic.Puzzles
             {
                 Debug.Log($"Puzzle {gameObject.name} failed - time expired");
             }
+            if (Active == this) Active = null;
         }
         
         /// <summary>
@@ -269,6 +280,32 @@ namespace Run4theRelic.Puzzles
             if (seconds <= 0f) return;
             if (!_isActive || _isCompleted || _isFailed) return;
             _currentTime = Mathf.Max(0f, _currentTime - seconds);
+        }
+        
+        /// <summary>
+        /// Dra av sekunder och sänd tick till HUD.
+        /// </summary>
+        public virtual void ApplyTimeDrain(float seconds)
+        {
+            if (!_isActive || _isCompleted || _isFailed) return;
+            if (seconds <= 0f) return;
+            _currentTime = Mathf.Max(0f, _currentTime - seconds);
+            GameEvents.TriggerPuzzleTimerTick(Mathf.CeilToInt(_currentTime), Mathf.RoundToInt(timeLimit));
+            if (showDebugInfo)
+            {
+                Debug.Log($"{name}: TimeDrain -{seconds:0.##}s → {_currentTime:0.##}s kvar");
+            }
+        }
+        
+        /// <summary>
+        /// Stub: spawnar falska ledtrådar. Override:a i subklasser för visuell/logic.
+        /// </summary>
+        public virtual void SpawnFakeClues(float durationSeconds)
+        {
+            if (showDebugInfo)
+            {
+                Debug.Log($"{name}: FakeClues for {durationSeconds:0.##}s (stub)");
+            }
         }
     }
 } 

@@ -57,6 +57,12 @@ namespace Run4theRelic.Core
         /// </summary>
         public static event Action OnMatchEnded;
         
+        // Sabotage-events
+        /// <summary>
+        /// Triggas när ett sabotage aktiveras. Arg1 = typ ("fog"/"timedrain"/"fakeclues"), Arg2 = värde (t.ex. varaktighet eller sekunder).
+        /// </summary>
+        public static event Action<string, float> OnSabotaged;
+        
         // Event-triggers (endast för interna system)
         internal static void TriggerPuzzleCompleted(int playerId, float clearTime)
         {
@@ -101,6 +107,11 @@ namespace Run4theRelic.Core
         internal static void TriggerMatchEnded()
         {
             OnMatchEnded?.Invoke();
+        }
+        
+        internal static void TriggerSabotaged(string type, float value)
+        {
+            OnSabotaged?.Invoke(type, value);
         }
     }
     
