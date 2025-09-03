@@ -1,3 +1,24 @@
+## Sabotage targeting (dev-sim)
+
+För att testa sabotage-målval i Editor utan nätverk:
+
+1. Lägg `Dev/SimulatedOpponentSpawner` i scenen.
+   - Sätt `numPlayers` till t.ex. 3 (en blir Local och 2 motståndare).
+   - Välj vilken index som är `localPlayerIndex`.
+2. Se att kapslar spawns med `SabotageReceiver` och registreras via `Core/PlayerRegistry`.
+3. Lägg `Sabotage/SabotageManager` i scenen (eller använd befintlig).
+4. Anropa sabotage:
+   - Via Inspector/Debug: `SabotageManager.ApplyFog(targetPlayerId)` för en specifik spelare.
+   - Eller välj mål med `SabotageTargeting.PickRandomOpponent(selfId)` / `PickLeadingOpponent(selfId)` och skicka id:t till `ApplyFog`.
+5. Verifiera resultat:
+   - Endast den träffade spelaren får dimman.
+   - Endast den lokala som träffas får HUD-notisen via `GameEvents.OnSabotaged` ("SABOTAGED!").
+
+Noteringar och framtid:
+
+- `SabotageTargeting.PickLeadingOpponent(selfId)` är stub och väljer första registrerade ≠ self. Senare kopplas riktig progression.
+- `PlayerRegistry` använder id 1..N i dev-sim. Nätverks-id kopplas in senare utan att byta API.
+
 # Scen Setup Guide - Run4theRelic
 
 ## Förutsättningar
