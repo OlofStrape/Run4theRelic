@@ -20,6 +20,14 @@ namespace Run4theRelic.Puzzles.CableConnect
         
         private bool _wasCompleted;
         
+        protected override void OnFailed()
+        {
+            base.OnFailed();
+            ResetPuzzle();
+            // Optionally allow immediate retry by restarting the timer:
+            // _timer = timeLimit; _isFailed = false; _isCompleted = false;
+        }
+
         protected override void OnPuzzleStart()
         {
             // Reset all connections
@@ -45,10 +53,7 @@ namespace Run4theRelic.Puzzles.CableConnect
         
         protected override void OnPuzzleReset()
         {
-            ResetAllConnections();
-            _wasCompleted = false;
-            
-            Debug.Log("Cable Connect puzzle reset");
+            ResetPuzzle();
         }
         
         private void Update()
@@ -110,6 +115,16 @@ namespace Run4theRelic.Puzzles.CableConnect
                     plug.Disconnect();
                 }
             }
+        }
+
+        private void ResetPuzzle()
+        {
+            // Clear all connections
+            ResetAllConnections();
+            // Reset local flags
+            _wasCompleted = false;
+            // Notify legacy hook
+            OnPuzzleReset();
         }
         
         /// <summary>
