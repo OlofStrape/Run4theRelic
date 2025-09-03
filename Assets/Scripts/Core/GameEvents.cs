@@ -50,6 +50,10 @@ namespace Run4theRelic.Core
         /// </summary>
         public static event Action<MatchPhase> OnMatchPhaseChanged;
         /// <summary>
+        /// Triggas när fas byts, inklusive en varaktighet (sekunder). 0 om ingen timer.
+        /// </summary>
+        public static event Action<MatchPhase, float> OnPhaseChanged;
+        /// <summary>
         /// Triggas när matchen är slut.
         /// </summary>
         public static event Action OnMatchEnded;
@@ -98,6 +102,10 @@ namespace Run4theRelic.Core
         internal static void TriggerMatchPhaseChanged(MatchPhase newPhase)
         {
             OnMatchPhaseChanged?.Invoke(newPhase);
+        }
+        internal static void TriggerPhaseChanged(MatchPhase phase, float duration)
+        {
+            OnPhaseChanged?.Invoke(phase, duration);
         }
         internal static void TriggerMatchEnded()
         {

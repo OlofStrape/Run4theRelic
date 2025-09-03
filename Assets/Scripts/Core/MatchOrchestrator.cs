@@ -114,10 +114,25 @@ namespace Run4theRelic.Core
         private void SetPhase(MatchPhase newPhase)
         {
             _currentPhase = newPhase;
+            // Bestäm duration för fas och uppdatera timer först
+            float phaseDuration = 0f;
+            switch (newPhase)
+            {
+                case MatchPhase.Countdown:
+                    phaseDuration = countdownDuration;
+                    break;
+                case MatchPhase.GoldTimeSabotage:
+                    phaseDuration = 5f;
+                    break;
+                default:
+                    phaseDuration = 0f; // Pussel och övriga faser har ingen central timer här
+                    break;
+            }
+            _phaseTimer = phaseDuration;
+
+            // Trigga events (utan och med duration)
             GameEvents.TriggerMatchPhaseChanged(newPhase);
-            // (Optional) HUD hook: skicka fasskifte och timer (0 för Final)
-            // If you add HUD listening for phase + timer, uncomment and implement handler
-            // GameEvents.TriggerPhaseChangedWithTimer?.Invoke(newPhase, _phaseTimer);
+            GameEvents.TriggerPhaseChanged(newPhase, phaseDuration);
             
             Debug.Log($"Match phase changed to: {newPhase}");
             
@@ -128,7 +143,7 @@ namespace Run4theRelic.Core
                     // Vänta på spelare
                     break;
                 case MatchPhase.Countdown:
-                    _phaseTimer = countdownDuration;
+                    // Timer redan satt via phaseDuration ovan
                     break;
                 case MatchPhase.Puzzle1:
                 case MatchPhase.Puzzle2:
@@ -136,7 +151,7 @@ namespace Run4theRelic.Core
                     // Aktivera motsvarande pussel
                     break;
                 case MatchPhase.GoldTimeSabotage:
-                    _phaseTimer = 5f; // Sabotage-duration
+                    // Timer redan satt via phaseDuration ovan
                     break;
                 case MatchPhase.Final:
                     // Relic kommer spawnas via SpawnRelic()
