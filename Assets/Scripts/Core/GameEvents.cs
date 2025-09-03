@@ -15,6 +15,12 @@ namespace Run4theRelic.Core
         public static event Action<int, float> OnPuzzleCompleted; // playerId, clearTime
         
         /// <summary>
+        /// Triggas varje sekund medan ett pussel är aktivt.
+        /// Parametrar: sekunder kvar (avrundat uppåt), samt ursprunglig limit i sekunder.
+        /// </summary>
+        public static event Action<int, int> OnPuzzleTimerTick; // secondsRemaining, secondsLimit
+        
+        /// <summary>
         /// Triggas när en spelare elimineras.
         /// </summary>
         public static event Action<int> OnPlayerEliminated; // playerId
@@ -51,10 +57,21 @@ namespace Run4theRelic.Core
         /// </summary>
         public static event Action OnMatchEnded;
         
+        // Sabotage-events
+        /// <summary>
+        /// Triggas när ett sabotage aktiveras. Arg1 = typ ("fog"/"timedrain"/"fakeclues"), Arg2 = värde (t.ex. varaktighet eller sekunder).
+        /// </summary>
+        public static event Action<string, float> OnSabotaged;
+        
         // Event-triggers (endast för interna system)
         internal static void TriggerPuzzleCompleted(int playerId, float clearTime)
         {
             OnPuzzleCompleted?.Invoke(playerId, clearTime);
+        }
+
+        internal static void TriggerPuzzleTimerTick(int secondsRemaining, int secondsLimit)
+        {
+            OnPuzzleTimerTick?.Invoke(secondsRemaining, secondsLimit);
         }
         
         internal static void TriggerPlayerEliminated(int playerId)
@@ -90,6 +107,11 @@ namespace Run4theRelic.Core
         internal static void TriggerMatchEnded()
         {
             OnMatchEnded?.Invoke();
+        }
+        
+        internal static void TriggerSabotaged(string type, float value)
+        {
+            OnSabotaged?.Invoke(type, value);
         }
     }
     

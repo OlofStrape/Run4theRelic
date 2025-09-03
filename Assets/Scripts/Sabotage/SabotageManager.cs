@@ -11,6 +11,7 @@ namespace Run4theRelic.Sabotage
     /// </summary>
     public class SabotageManager : MonoBehaviour
     {
+        public static SabotageManager Instance { get; private set; }
         [Header("Sabotage Settings")]
         [SerializeField] private float defaultFogDuration = 5f;
         [SerializeField] private bool enableFogByDefault = false;
@@ -41,18 +42,26 @@ namespace Run4theRelic.Sabotage
         /// </summary>
         public int ActiveFogCount => _activeFogEffects.Count;
         
-        private void Start()
+        private void Awake()
         {
-            // Set initial fog state
-            _globalFogEnabled = enableFogByDefault;
+            if (Instance != null && Instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+            Instance = this;
             
-            // Initialize fog material if provided
+            // Init fog material if provided
             if (fogMaterial != null)
             {
                 fogMaterial.color = fogColor;
                 fogMaterial.SetFloat("_FogDensity", fogDensity);
             }
-            
+        }
+
+        private void Start()
+        {
+            _globalFogEnabled = enableFogByDefault;
             Debug.Log("SabotageManager initialized");
         }
         
@@ -156,6 +165,7 @@ namespace Run4theRelic.Sabotage
             if (duration < 0f) duration = defaultFogDuration;
             SetGlobalFog(true);
             StartCoroutine(ClearGlobalFogAfter(duration));
+            Run4theRelic.Core.GameEvents.TriggerSabotaged("fog", duration);
         }
         
         private IEnumerator ClearGlobalFogAfter(float duration)
@@ -170,15 +180,13 @@ namespace Run4theRelic.Sabotage
         public void ApplyTimeDrain(float seconds = 5f)
         {
             if (seconds <= 0f) return;
-            PuzzleControllerBase[] puzzles = FindObjectsOfType<PuzzleControllerBase>(true);
-            foreach (var p in puzzles)
+            var active = PuzzleControllerBase.Active;
+            if (active != null && active.IsActive && !active.IsCompleted && !active.IsFailed)
             {
-                if (p != null && p.IsActive && !p.IsCompleted && !p.IsFailed)
-                {
-                    p.ReduceTimeRemaining(seconds);
-                    if (showDebugInfo) Debug.Log($"ApplyTimeDrain: -{seconds}s to {p.gameObject.name}");
-                    return;
-                }
+                active.ApplyTimeDrain(seconds);
+                if (showDebugInfo) Debug.Log($"ApplyTimeDrain: -{seconds}s to {active.gameObject.name}");
+                Run4theRelic.Core.GameEvents.TriggerSabotaged("timedrain", seconds);
+                return;
             }
             if (showDebugInfo) Debug.Log("ApplyTimeDrain: No active puzzle found.");
         }
@@ -188,19 +196,26 @@ namespace Run4theRelic.Sabotage
         /// </summary>
         public void ApplyFakeClues(float duration = 5f, int count = -1)
         {
+            var active = PuzzleControllerBase.Active;
+            if (active != null)
+            {
+                active.SpawnFakeClues(duration);
+                Run4theRelic.Core.GameEvents.TriggerSabotaged("fakeclues", duration);
+                if (showDebugInfo) Debug.Log($"ApplyFakeClues: requested on {active.gameObject.name} for {duration}s");
+                return;
+            }
+            // Fallback to legacy visual noise spawn near camera if no active puzzle
             if (count <= 0) count = defaultFakeClueCount;
             Transform origin = Camera.main != null ? Camera.main.transform : transform;
             Vector3 center = origin.position + origin.forward * 2f;
             Quaternion faceCam = Camera.main != null ? Quaternion.LookRotation(center - Camera.main.transform.position) : Quaternion.identity;
-            
             for (int i = 0; i < count; i++)
             {
                 GameObject clue = CreateFakeClue(center, faceCam, i);
                 _spawnedFakeClues.Add(clue);
             }
-            
             StartCoroutine(ClearFakeCluesAfter(duration));
-            if (showDebugInfo) Debug.Log($"ApplyFakeClues: Spawned {count} fake clues for {duration}s");
+            if (showDebugInfo) Debug.Log($"ApplyFakeClues (fallback): Spawned {count} fake clues for {duration}s");
         }
         
         private GameObject CreateFakeClue(Vector3 center, Quaternion rotation, int index)
