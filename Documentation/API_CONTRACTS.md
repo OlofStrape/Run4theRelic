@@ -148,6 +148,32 @@ public class SabotageManager : MonoBehaviour
     public void TriggerFog(GameObject target, float duration = 5f);
     public void ClearFog(GameObject target);
     public bool IsFogActive(GameObject target);
+    
+    // Extended
+    public void ApplyFog(float duration = 5f); // Global fog for duration
+    public void ApplyTimeDrain(float seconds = 5f); // Reduce time on active puzzle
+    public void ApplyFakeClues(float duration = 5f, int count = 6); // Spawn decoys
+}
+```
+
+### SabotageTokenBank
+```csharp
+public class SabotageTokenBank : MonoBehaviour
+{
+    public int CurrentTokens { get; }
+    public event Action<int> OnTokensChanged;
+    public void Add(int amount);
+    public bool Spend(int amount);
+}
+```
+
+### SabotageWheel
+```csharp
+public class SabotageWheel : MonoBehaviour
+{
+    public enum Option { Fog, TimeDrain, FakeClues }
+    public void Show(Option[] options); // Auto-hides after 5s or on selection
+    public void Hide();
 }
 ```
 

@@ -175,7 +175,7 @@ namespace Run4theRelic.Sabotage
             {
                 if (p != null && p.IsActive && !p.IsCompleted && !p.IsFailed)
                 {
-                    p.GetType().GetMethod("ReduceTimeRemaining")?.Invoke(p, new object[] { seconds });
+                    p.ReduceTimeRemaining(seconds);
                     if (showDebugInfo) Debug.Log($"ApplyTimeDrain: -{seconds}s to {p.gameObject.name}");
                     return;
                 }
@@ -222,7 +222,9 @@ namespace Run4theRelic.Sabotage
                 var renderer = go.GetComponent<Renderer>();
                 if (renderer != null)
                 {
-                    Material m = new Material(Shader.Find("UI/Unlit/Transparent"));
+                    var shader = Shader.Find("Unlit/Transparent");
+                    if (shader == null) shader = Shader.Find("Unlit/Color");
+                    Material m = new Material(shader);
                     m.color = new Color(Random.value, Random.value, Random.value, 0.9f);
                     renderer.material = m;
                 }
