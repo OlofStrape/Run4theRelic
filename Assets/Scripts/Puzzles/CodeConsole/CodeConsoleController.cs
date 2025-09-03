@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using Run4theRelic.Core;
 
 namespace Run4theRelic.Puzzles.CodeConsole
 {
@@ -31,9 +32,50 @@ namespace Run4theRelic.Puzzles.CodeConsole
 
         void GenerateSequence()
         {
+            int domain = Mathf.Min(symbolDomain, pads.Count);
+            if (domain < 2) domain = 2;
+
             _sequence = new int[sequenceLength];
             for (int i = 0; i < sequenceLength; i++)
-                _sequence[i] = Random.Range(0, Mathf.Min(symbolDomain, pads.Count));
+            {
+                if (i == 0)
+                {
+                    _sequence[i] = SecureRandom.NextInt(domain);
+                }
+                else if (i == 1)
+                {
+                    // Forbid immediate repeat
+                    int prev = _sequence[i - 1];
+                    int choice = SecureRandom.NextIndexExcluding(domain, prev);
+                    _sequence[i] = choice < 0 ? prev : choice;
+                }
+                else
+                {
+                    int prev = _sequence[i - 1];
+                    int prev2 = _sequence[i - 2];
+                    if (domain >= 3)
+                    {
+                        // Exclude prev and prev2 to reduce ABAB patterns
+                        int r = SecureRandom.NextInt(domain - 2);
+                        int idx = 0; int k = 0; int choice = 0;
+                        while (true)
+                        {
+                            if (idx != prev && idx != prev2)
+                            {
+                                if (k == r) { choice = idx; break; }
+                                k++;
+                            }
+                            idx++;
+                        }
+                        _sequence[i] = choice;
+                    }
+                    else
+                    {
+                        // Only two symbols: alternate (cannot avoid ABAB entirely)
+                        _sequence[i] = prev == 0 ? 1 : 0;
+                    }
+                }
+            }
             _inputIndex = 0;
         }
 

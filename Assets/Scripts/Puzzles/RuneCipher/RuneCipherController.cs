@@ -1,4 +1,5 @@
 using UnityEngine;
+using Run4theRelic.Core;
 
 namespace Run4theRelic.Puzzles.RuneCipher
 {
@@ -20,12 +21,39 @@ namespace Run4theRelic.Puzzles.RuneCipher
             if (midRing) midRing.OnStepChanged += _ => CheckSolved();
             if (innerRing) innerRing.OnStepChanged += _ => CheckSolved();
 
-            // Seed:a mål slumpmässigt vid start (om allt 0)
+            // Seed:a mål slumpmässigt vid start (om allt 0). Använd CSPRNG och undvik triviala mönster som alla lika.
             if (outerTarget == 0 && midTarget == 0 && innerTarget == 0)
             {
-                outerTarget = Random.Range(0, outerRing ? outerRing.steps : 8);
-                midTarget = Random.Range(0, midRing ? midRing.steps : 8);
-                innerTarget = Random.Range(0, innerRing ? innerRing.steps : 8);
+                int oSteps = outerRing ? Mathf.Max(1, outerRing.steps) : 8;
+                int mSteps = midRing ? Mathf.Max(1, midRing.steps) : 8;
+                int iSteps = innerRing ? Mathf.Max(1, innerRing.steps) : 8;
+
+                outerTarget = SecureRandom.NextInt(oSteps);
+                // Undvik att alla tre blir identiska genom enkla exclusions när möjligt
+                midTarget = oSteps == mSteps ? SecureRandom.NextIndexExcluding(mSteps, outerTarget) : SecureRandom.NextInt(mSteps);
+                if (midTarget < 0) midTarget = SecureRandom.NextInt(mSteps);
+
+                if (iSteps >= 3 && oSteps == iSteps && mSteps == iSteps)
+                {
+                    // Försök göra inner unik från både outer och mid
+                    int r = SecureRandom.NextInt(iSteps - 2);
+                    int idx = 0, k = 0, choice = 0;
+                    while (true)
+                    {
+                        if (idx != outerTarget && idx != midTarget)
+                        {
+                            if (k == r) { choice = idx; break; }
+                            k++;
+                        }
+                        idx++;
+                    }
+                    innerTarget = choice;
+                }
+                else
+                {
+                    // Olika stegstorlekar: välj fritt
+                    innerTarget = SecureRandom.NextInt(iSteps);
+                }
             }
         }
 

@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Run4theRelic.Puzzles;
+using Run4theRelic.Core;
 
 namespace Run4theRelic.Puzzles.RunicSequence
 {
@@ -105,18 +106,70 @@ namespace Run4theRelic.Puzzles.RunicSequence
         }
         
         /// <summary>
-        /// Generate a new random sequence for the puzzle.
+        /// Generate a new random sequence with constraints to avoid trivial memorization:
+        /// - No immediate repeats (A, A)
+        /// - Limit simple alternations (A, B, A, B) by prohibiting x[i] == x[i-2]
         /// </summary>
         private void GenerateSequence()
         {
             _currentSequence.Clear();
-            
+
+            if (pads == null || pads.Count < 2)
+            {
+                // Fallback to simple selection if not enough pads
+                for (int i = 0; i < sequenceLength; i++)
+                {
+                    _currentSequence.Add(0);
+                }
+                return;
+            }
+
             for (int i = 0; i < sequenceLength; i++)
             {
-                int randomPadId = Random.Range(0, pads.Count);
-                _currentSequence.Add(randomPadId);
+                int choice;
+                if (i == 0)
+                {
+                    choice = SecureRandom.NextInt(pads.Count);
+                }
+                else if (i == 1)
+                {
+                    // Exclude immediate repeat
+                    int prev = _currentSequence[i - 1];
+                    choice = SecureRandom.NextIndexExcluding(pads.Count, prev);
+                    if (choice < 0) choice = prev; // Degenerate case
+                }
+                else
+                {
+                    int prev = _currentSequence[i - 1];
+                    int prev2 = _currentSequence[i - 2];
+                    // Prefer excluding both prev and prev2 when possible
+                    if (pads.Count >= 3)
+                    {
+                        // Draw from count-2, skip prev and prev2
+                        int r = SecureRandom.NextInt(pads.Count - 2);
+                        // Map r to an index that skips prev and prev2
+                        int idx = 0;
+                        int k = 0;
+                        while (true)
+                        {
+                            if (idx != prev && idx != prev2)
+                            {
+                                if (k == r) { choice = idx; break; }
+                                k++;
+                            }
+                            idx++;
+                        }
+                    }
+                    else
+                    {
+                        // Only two pads exist: forbid immediate repeat; alternation is unavoidable
+                        choice = prev == 0 ? 1 : 0;
+                    }
+                }
+
+                _currentSequence.Add(choice);
             }
-            
+
             if (showSequenceDebug)
             {
                 string sequenceStr = string.Join(", ", _currentSequence);
