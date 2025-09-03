@@ -43,6 +43,9 @@ namespace Run4theRelic.Puzzles
         private VRInteractionSystem _vrInteractionSystem;
         private VRManager _vrManager;
         
+        // Events
+        public static event System.Action<string, float, bool> OnPuzzleCompleted;
+        
         protected override void Start()
         {
             base.Start();

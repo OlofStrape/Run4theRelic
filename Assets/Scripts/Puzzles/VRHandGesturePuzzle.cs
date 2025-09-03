@@ -48,6 +48,7 @@ namespace Run4theRelic.Puzzles
         public static event System.Action<int, HandGesture> OnGestureStarted;
         public static event System.Action<int, HandGesture> OnGestureCompleted;
         public static event System.Action<int, HandGesture> OnGestureFailed;
+        public static event System.Action<string, float, bool> OnPuzzleCompleted;
         
         [System.Serializable]
         public class HandGesture
