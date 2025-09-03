@@ -13,6 +13,7 @@ namespace Run4theRelic.Sabotage
         [Header("Sabotage Settings")]
         [SerializeField] private float defaultFogDuration = 5f;
         [SerializeField] private bool enableFogByDefault = false;
+        [SerializeField] private Transform fogRoot;
         
         [Header("Fog Effect")]
         [SerializeField] private Material fogMaterial;
@@ -24,6 +25,7 @@ namespace Run4theRelic.Sabotage
         
         private Dictionary<GameObject, FogEffect> _activeFogEffects = new Dictionary<GameObject, FogEffect>();
         private bool _globalFogEnabled;
+        private ParticleSystem _fallbackFogPs;
         
         /// <summary>
         /// Is global fog currently enabled.
@@ -50,6 +52,105 @@ namespace Run4theRelic.Sabotage
             Debug.Log("SabotageManager initialized");
         }
         
+        /// <summary>
+        /// Apply a temporary global fog using a runtime ParticleSystem as a fallback when no prefab/system exists.
+        /// If <c>fogRoot</c> is not assigned, attaches to this GameObject.
+        /// Duration defaults to <see cref="defaultFogDuration"/>.
+        /// </summary>
+        /// <param name="duration">Fog duration in seconds.</param>
+        public void ApplyFog(float duration = -1f)
+        {
+            if (duration < 0f) duration = defaultFogDuration;
+
+            var parent = fogRoot != null ? fogRoot : transform;
+
+            // Ensure the fallback particle system exists
+            if (_fallbackFogPs == null)
+            {
+                _fallbackFogPs = CreateFallbackFog(parent);
+            }
+
+            if (_fallbackFogPs == null)
+            {
+                Debug.LogWarning("Failed to create fallback fog ParticleSystem.");
+                return;
+            }
+
+            // Enable emission and play
+            var emission = _fallbackFogPs.emission;
+            emission.enabled = true;
+            _fallbackFogPs.Play(true);
+
+            // Enable for duration, then disable
+            StartCoroutine(DisableFogAfter(duration));
+
+            if (showDebugInfo)
+            {
+                Debug.Log($"Fallback fog enabled for {duration}s");
+            }
+        }
+
+        /// <summary>
+        /// Creates a simple low-cost ParticleSystem used as fog fallback.
+        /// TODO: Byt till prefab senare.
+        /// </summary>
+        private ParticleSystem CreateFallbackFog(Transform parent)
+        {
+            var go = new GameObject("SabotageFog_Fallback");
+            go.transform.SetParent(parent);
+            go.transform.localPosition = Vector3.zero;
+
+            var ps = go.AddComponent<ParticleSystem>();
+            var main = ps.main;
+            main.loop = true;
+            main.duration = 5f;
+            main.startLifetime = 3f;
+            main.startSpeed = 0.1f;
+            main.startSize = new ParticleSystem.MinMaxCurve(6f, 8f);
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = 500;
+            main.startColor = new Color(0.7f, 0.7f, 0.7f, 0.25f);
+
+            var emission = ps.emission;
+            emission.rateOverTime = 12f; // låg rate
+            emission.enabled = false; // enabled when used
+
+            var shape = ps.shape;
+            shape.enabled = true;
+            shape.shapeType = ParticleSystemShapeType.Sphere;
+            shape.radius = 4f;
+
+            var colorOverLifetime = ps.colorOverLifetime;
+            colorOverLifetime.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[] { new GradientColorKey(new Color(0.7f, 0.7f, 0.7f), 0f), new GradientColorKey(new Color(0.7f, 0.7f, 0.7f), 1f) },
+                new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(0.25f, 0.2f), new GradientAlphaKey(0.25f, 0.8f), new GradientAlphaKey(0f, 1f) }
+            );
+            colorOverLifetime.color = new ParticleSystem.MinMaxGradient(gradient);
+
+            var renderer = ps.GetComponent<ParticleSystemRenderer>();
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.sortingOrder = 1000;
+
+            return ps;
+        }
+
+        private IEnumerator DisableFogAfter(float seconds)
+        {
+            yield return new WaitForSeconds(seconds);
+            if (_fallbackFogPs != null)
+            {
+                var emission = _fallbackFogPs.emission;
+                emission.enabled = false;
+                _fallbackFogPs.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            }
+            if (showDebugInfo)
+            {
+                Debug.Log("Fallback fog disabled");
+            }
+        }
+
         /// <summary>
         /// Trigger fog effect on a specific target.
         /// </summary>
