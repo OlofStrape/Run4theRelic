@@ -21,6 +21,12 @@ namespace Dev
 
 			if (!FindFirstObjectByType<UI.HUD.HUDController>())
 				Debug.LogWarning("[SceneValidator] HUDController saknas.");
+
+			var uiBootstrap = FindFirstObjectByType<Run4theRelic.UI.UIBootstrap>();
+			if (!uiBootstrap)
+			{
+				Debug.LogWarning("[SceneValidator] UIBootstrap saknas. Lägg till Run4theRelic.UI.UIBootstrap i scenen.");
+			}
 		}
 	}
 }
