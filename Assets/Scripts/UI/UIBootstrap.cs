@@ -13,6 +13,7 @@ namespace Run4theRelic.UI
 		[SerializeField] private Vector2 canvasSize = new Vector2(800, 450);
 		[SerializeField] private float pixelsPerUnit = 200f;
 		[SerializeField] private Font fallbackFont;
+		[SerializeField] private ThemeConfig themeConfig;
 
 		private Canvas _canvas;
 		private RectTransform _root;
@@ -21,6 +22,7 @@ namespace Run4theRelic.UI
 		{
 			EnsureCanvas();
 			CreateChildRoots();
+			ApplyThemeIfAvailable();
 		}
 
 		void EnsureCanvas()
@@ -55,6 +57,17 @@ namespace Run4theRelic.UI
 			_root.sizeDelta = canvasSize;
 			_root.localPosition = localPosition;
 			_root.localRotation = Quaternion.identity;
+		}
+
+		void ApplyThemeIfAvailable()
+		{
+			if (!themeConfig) return;
+			var applier = GetComponent<ThemeApplier>();
+			if (applier == null) applier = gameObject.AddComponent<ThemeApplier>();
+			var so = new SerializedObject(applier);
+			so.FindProperty("theme").objectReferenceValue = themeConfig;
+			so.FindProperty("applyOnAwake").boolValue = true;
+			so.ApplyModifiedPropertiesWithoutUndo();
 		}
 
 		void CreateChildRoots()
