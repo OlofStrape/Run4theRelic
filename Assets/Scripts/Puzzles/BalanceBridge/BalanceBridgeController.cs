@@ -23,6 +23,14 @@ namespace Run4theRelic.Puzzles.BalanceBridge
         private bool _isBalanced;
         private float _lastCheckTime;
         
+        protected override void OnFailed()
+        {
+            base.OnFailed();
+            ResetPuzzle();
+            // Optionally allow immediate retry by restarting the timer:
+            // _timer = timeLimit; _isFailed = false; _isCompleted = false;
+        }
+
         protected override void OnPuzzleStart()
         {
             // Reset balance state
@@ -50,12 +58,7 @@ namespace Run4theRelic.Puzzles.BalanceBridge
         
         protected override void OnPuzzleReset()
         {
-            // Reset balance state
-            _balanceTimer = 0f;
-            _isBalanced = false;
-            _lastCheckTime = 0f;
-            
-            Debug.Log("Balance Bridge puzzle reset");
+            ResetPuzzle();
         }
         
         private void Update()
@@ -158,6 +161,16 @@ namespace Run4theRelic.Puzzles.BalanceBridge
         {
             if (!_isBalanced) return 0f;
             return Mathf.Clamp01(_balanceTimer / balanceTime);
+        }
+
+        private void ResetPuzzle()
+        {
+            // Reset balance state
+            _balanceTimer = 0f;
+            _isBalanced = false;
+            _lastCheckTime = 0f;
+            // Notify legacy hook
+            OnPuzzleReset();
         }
         
         /// <summary>

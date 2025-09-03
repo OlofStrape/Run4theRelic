@@ -27,6 +27,14 @@ namespace Run4theRelic.Puzzles.RunicSequence
         private bool _isWaitingForInput;
         private float _inputTimer;
         
+        protected override void OnFailed()
+        {
+            base.OnFailed();
+            ResetPuzzle();
+            // If you want to allow immediate retry upon timeout, uncomment to auto-restart timing
+            // _timer = timeLimit; _isFailed = false; _isCompleted = false; StartCoroutine(ShowSequence());
+        }
+
         protected override void OnPuzzleStart()
         {
             // Reset state
@@ -59,16 +67,7 @@ namespace Run4theRelic.Puzzles.RunicSequence
         
         protected override void OnPuzzleReset()
         {
-            // Stop any running coroutines
-            StopAllCoroutines();
-            
-            // Reset all pads
-            foreach (RunicPad pad in pads)
-            {
-                pad.Reset();
-            }
-            
-            Debug.Log("Runic Sequence puzzle reset");
+            ResetPuzzle();
         }
         
         private void Start()
@@ -263,6 +262,32 @@ namespace Run4theRelic.Puzzles.RunicSequence
             
             // Show sequence again
             StartCoroutine(ShowSequence());
+        }
+
+        private void ResetPuzzle()
+        {
+            // Stop any running coroutines
+            StopAllCoroutines();
+
+            // Reset local state
+            _isShowingSequence = false;
+            _isWaitingForInput = false;
+            _inputTimer = 0f;
+            _currentStep = 0;
+            _playerInput.Clear();
+
+            // Reset pads visuals/state
+            foreach (RunicPad pad in pads)
+            {
+                if (pad != null)
+                {
+                    pad.Unhighlight();
+                    pad.Reset();
+                }
+            }
+
+            // Notify legacy reset hook
+            OnPuzzleReset();
         }
         
         /// <summary>
