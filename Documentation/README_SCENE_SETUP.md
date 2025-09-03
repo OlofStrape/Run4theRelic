@@ -1,3 +1,51 @@
+## Relic polish
+
+This guide covers how to set up the Relic with hand anchor, aura glow, smarter drop, and audio hooks.
+
+### Hand anchor
+
+- Assign `RelicController.rightHandAnchor` manually in the inspector to the player's right-hand transform.
+- If left null, a fallback search is performed at runtime using the path:
+  `XR Origin/Camera Offset/RightHand Controller` from the scene root.
+
+### Carry slow (movement)
+
+- `RelicController.carrySpeedMultiplier` controls the carrier's move speed while carrying.
+- Suggested range: 0.5–0.65 (default 0.55) for a clear but fair slowdown.
+- If your `PlayerMovementHook.SetCarrySlow(bool, float)` overload exists, the multiplier is applied automatically. Otherwise, the legacy `SetCarrySlow(bool)` is used.
+
+### Smarter drop on collisions
+
+- Configure:
+  - `dropVelocityThreshold`: speed threshold to trigger a drop on collision. Try 1.2–2.0; default 1.5.
+  - `dropAngleBias`: blends the carrier forward vs. collision normal (0 = forward, 1 = normal). Default 0.25.
+  - `dropImpulse`: impulse applied when force-dropping. Default 2.5.
+- When the carried Relic collides over the threshold, it will force-drop in a blended forward/normal direction, with a small upward bias for clarity.
+
+### Aura glow
+
+- Add the `RelicAura` component to the Relic GameObject.
+- `RelicAura` uses a `LineRenderer` circle that pulses scale and alpha over time.
+- Parameters: `radius` (0.25 default), `pulseSpeed` (1.5), `minScale` (0.9), `maxScale` (1.1).
+- For best results, use URP with Bloom enabled.
+
+### Audio hooks
+
+- Add an `AudioSource` component on the Relic and assign it to `RelicController.audioSource`.
+- Drag audio clips into:
+  - `sfxPickup`: played on pickup
+  - `sfxDrop`: played on drop/force-drop
+  - `sfxExtract`: played when the Relic is extracted
+- If any clip is not assigned, that sound is simply skipped.
+
+### Acceptance checklist
+
+- Relic anchors consistently to the right hand (or uses fallback path)
+- Carrier moves slower with a clear difference
+- Drop occurs on collisions over threshold, with understandable forward impulse
+- Aura is visible and pulses in-game
+- Audio hooks play when clips are assigned
+
 # Scen Setup Guide - Run4theRelic
 
 ## Förutsättningar
