@@ -26,7 +26,6 @@ namespace Run4theRelic.Puzzles
         bool _running;
         protected bool _isCompleted;
         protected bool _isFailed;
-
         /// <summary>
         /// Currently active puzzle instance. Used by <see cref="Run4theRelic.Sabotage.SabotageManager"/>.
         /// </summary>
@@ -126,7 +125,7 @@ namespace Run4theRelic.Puzzles
         public virtual void ApplyTimeDrain(float seconds)
         {
             if (!_running || seconds <= 0f) return;
-            _timer -= seconds;
+            _timer = Mathf.Max(0f, _timer - seconds);
             // Skicka direkt tick så HUD uppdateras
             GameEvents.TriggerPuzzleTimerTick(Mathf.Max(0, Mathf.CeilToInt(_timer)), Mathf.CeilToInt(timeLimit));
             Debug.Log($"[{name}] TimeDrain: -{seconds:0.##}s → {_timer:0.##}s kvar");
@@ -165,6 +164,32 @@ namespace Run4theRelic.Puzzles
         public void ReduceTimeRemaining(float seconds)
         {
             ApplyTimeDrain(seconds);
+        }
+        
+        /// <summary>
+        /// Dra av sekunder och sänd tick till HUD.
+        /// </summary>
+        public virtual void ApplyTimeDrain(float seconds)
+        {
+            if (!_isActive || _isCompleted || _isFailed) return;
+            if (seconds <= 0f) return;
+            _currentTime = Mathf.Max(0f, _currentTime - seconds);
+            GameEvents.TriggerPuzzleTimerTick(Mathf.CeilToInt(_currentTime), Mathf.RoundToInt(timeLimit));
+            if (showDebugInfo)
+            {
+                Debug.Log($"{name}: TimeDrain -{seconds:0.##}s → {_currentTime:0.##}s kvar");
+            }
+        }
+        
+        /// <summary>
+        /// Stub: spawnar falska ledtrådar. Override:a i subklasser för visuell/logic.
+        /// </summary>
+        public virtual void SpawnFakeClues(float durationSeconds)
+        {
+            if (showDebugInfo)
+            {
+                Debug.Log($"{name}: FakeClues for {durationSeconds:0.##}s (stub)");
+            }
         }
     }
 }

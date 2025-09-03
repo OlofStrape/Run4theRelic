@@ -8,6 +8,7 @@ namespace Run4theRelic.Sabotage
 	/// </summary>
 	public class SabotageTokenBank : MonoBehaviour
 	{
+		public static SabotageTokenBank Instance { get; private set; }
 		[SerializeField] private int startingTokens = 0;
 		[SerializeField] private bool showDebugInfo = true;
 		private int _currentTokens;
@@ -21,9 +22,19 @@ namespace Run4theRelic.Sabotage
 		/// Current number of available tokens.
 		/// </summary>
 		public int CurrentTokens => _currentTokens;
+		/// <summary>
+		/// Alias för nuvarande antal tokens.
+		/// </summary>
+		public int Tokens => _currentTokens;
 
 		private void Awake()
 		{
+			if (Instance != null && Instance != this)
+			{
+				Destroy(gameObject);
+				return;
+			}
+			Instance = this;
 			_currentTokens = Mathf.Max(0, startingTokens);
 		}
 
@@ -38,6 +49,19 @@ namespace Run4theRelic.Sabotage
 			if (showDebugInfo)
 			{
 				Debug.Log($"SabotageTokenBank: +{amount} (total: {_currentTokens})");
+			}
+		}
+
+		/// <summary>
+		/// Återställ antal tokens till ett givet värde.
+		/// </summary>
+		public void ResetTokens(int value = 0)
+		{
+			_currentTokens = Mathf.Max(0, value);
+			OnTokensChanged?.Invoke(_currentTokens);
+			if (showDebugInfo)
+			{
+				Debug.Log($"SabotageTokenBank: reset -> {_currentTokens}");
 			}
 		}
 
@@ -57,6 +81,11 @@ namespace Run4theRelic.Sabotage
 			}
 			return true;
 		}
+
+		/// <summary>
+		/// Kan vi spendera angivet antal tokens?
+		/// </summary>
+		public bool CanSpend(int amount = 1) => amount > 0 && _currentTokens >= amount;
 	}
 }
 

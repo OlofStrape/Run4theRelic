@@ -14,9 +14,9 @@ namespace Run4theRelic.Core
         /// </summary>
         public static event Action<int, float> OnPuzzleCompleted; // playerId, clearTime
         /// <summary>
-        /// Triggas varje sekund-tick för ett aktivt pussel (HUD-timer mm).
+        /// Triggas varje sekund medan ett pussel är aktivt. Parametrar: sekunder kvar (avrundat uppåt), samt ursprunglig limit i sekunder.
         /// </summary>
-        public static event Action<int, int> OnPuzzleTimerTick; // remainingSeconds, limitSeconds
+        public static event Action<int, int> OnPuzzleTimerTick; // secondsRemaining, secondsLimit
         
         /// <summary>
         /// Triggas när en spelare elimineras.
@@ -50,26 +50,24 @@ namespace Run4theRelic.Core
         /// </summary>
         public static event Action<MatchPhase> OnMatchPhaseChanged;
         /// <summary>
-        /// Triggas när en sabotage-effekt appliceras (för HUD/logg): key och värde (sekunder mm).
-        /// </summary>
-        public static event Action<string, float> OnSabotaged;
-        
-        /// <summary>
         /// Triggas när matchen är slut.
         /// </summary>
         public static event Action OnMatchEnded;
+        
+        // Sabotage-events
+        /// <summary>
+        /// Triggas när ett sabotage aktiveras. Arg1 = typ ("fog"/"timedrain"/"fakeclues"), Arg2 = värde (t.ex. varaktighet eller sekunder).
+        /// </summary>
+        public static event Action<string, float> OnSabotaged;
         
         // Event-triggers (endast för interna system)
         internal static void TriggerPuzzleCompleted(int playerId, float clearTime)
         {
             OnPuzzleCompleted?.Invoke(playerId, clearTime);
         }
-        /// <summary>
-        /// Publik helper för att skicka timer-ticks (HUD).
-        /// </summary>
-        public static void TriggerPuzzleTimerTick(int remainingSeconds, int limitSeconds)
+        internal static void TriggerPuzzleTimerTick(int secondsRemaining, int secondsLimit)
         {
-            OnPuzzleTimerTick?.Invoke(remainingSeconds, limitSeconds);
+            OnPuzzleTimerTick?.Invoke(secondsRemaining, secondsLimit);
         }
         
         internal static void TriggerPlayerEliminated(int playerId)
@@ -101,17 +99,14 @@ namespace Run4theRelic.Core
         {
             OnMatchPhaseChanged?.Invoke(newPhase);
         }
-        /// <summary>
-        /// Publik helper för att skicka sabotage-notiser.
-        /// </summary>
-        public static void TriggerSabotaged(string key, float value)
-        {
-            OnSabotaged?.Invoke(key, value);
-        }
-        
         internal static void TriggerMatchEnded()
         {
             OnMatchEnded?.Invoke();
+        }
+        
+        internal static void TriggerSabotaged(string type, float value)
+        {
+            OnSabotaged?.Invoke(type, value);
         }
     }
     
