@@ -45,6 +45,22 @@ namespace Run4theRelic.Core
         /// Triggas när match-fasen ändras.
         /// </summary>
         public static event Action<MatchPhase> OnMatchPhaseChanged;
+
+        /// <summary>
+        /// Triggas när match-fas sätts/ändras och rapporterar eventuell fas-timer.
+        /// durationSeconds = 0 om fasen är open-ended (ingen fas-timer).
+        /// </summary>
+        public static Action<MatchPhase, float> OnPhaseChanged; // phase, durationSeconds (0 om open-ended)
+
+        /// <summary>
+        /// Triggas varje gång pussel-timern passerar ett nytt heltal.
+        /// </summary>
+        public static Action<int, int> OnPuzzleTimerTick; // secondsRemaining, secondsLimit
+
+        /// <summary>
+        /// Triggas när en sabotage-effekt aktiveras. typeId exempel: "fog".
+        /// </summary>
+        public static Action<string, float> OnSabotaged; // typeId, durationSeconds
         
         /// <summary>
         /// Triggas när matchen är slut.
