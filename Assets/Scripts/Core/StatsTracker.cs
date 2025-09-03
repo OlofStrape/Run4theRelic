@@ -1,8 +1,8 @@
 using UnityEngine;
-using Core;
+using Run4theRelic.Core;
 using System.Text;
 
-namespace Core
+namespace Run4theRelic.Core
 {
 	public class StatsTracker : MonoBehaviour
 	{
