@@ -48,6 +48,12 @@
    - Skapa "RelicArena" GameObject
    - Lägg till `RelicController` script
    - Skapa en "Relic" GameObject som child
+   - (Rekommenderat) Lägg till `RelicAura` på samma GameObject
+   - Lägg till en `LineRenderer` och låt `RelicAura` konfigurera ringen
+   - I `RelicController`:
+     - Sätt `Right Hand Anchor` till RightHand Controller (t.ex. `XR Origin/Camera Offset/RightHand Controller`)
+     - Sätt `Fallback Anchor` till XR Origin eller Head om höger hand saknas
+     - Koppla en `AudioSource` och assigna `sfxPickup`, `sfxDrop`, `sfxExtract`
 
 2. **Extraction Zone**
    - Skapa "ExtractionZone" GameObject
@@ -70,6 +76,9 @@
 1. Klicka **Play** i Unity
 2. Verifiera att:
    - XR Origin rör sig med WASD
+   - När Relic bärs är spelaren tydligt långsammare (0.55x)
+   - Relic droppar på hårda kollisioner eller när båda grips släpps >0.5s
+   - Aura-ringen syns och pulserar kring Relic
    - Scripts kompilerar utan fel
    - Console visar inga errors
 

@@ -21,6 +21,7 @@ namespace Run4theRelic.Player
         private float _currentMoveSpeed;
         private bool _isCarryingRelic;
         private float _customMoveSpeed = -1f; // -1 means use default
+        private float? _carryMultiplierOverride; // null -> use serialized carrySlowMultiplier
         
         /// <summary>
         /// Base movement speed of the player.
@@ -65,9 +66,27 @@ namespace Run4theRelic.Player
         public void SetCarrySlow(bool isCarrying)
         {
             _isCarryingRelic = isCarrying;
+            if (!isCarrying)
+            {
+                _carryMultiplierOverride = null; // clear override when not carrying
+            }
             UpdateMoveSpeed();
             
             Debug.Log($"Carry slow effect: {(isCarrying ? "ON" : "OFF")}");
+        }
+        
+        /// <summary>
+        /// Set the carry slow effect with a specific multiplier override.
+        /// </summary>
+        /// <param name="isCarrying">True if carrying Relic, false if not.</param>
+        /// <param name="multiplierOverride">Multiplier to apply while carrying (0..1).</param>
+        public void SetCarrySlow(bool isCarrying, float multiplierOverride)
+        {
+            _isCarryingRelic = isCarrying;
+            _carryMultiplierOverride = isCarrying ? Mathf.Clamp01(multiplierOverride) : (float?)null;
+            UpdateMoveSpeed();
+            
+            Debug.Log($"Carry slow effect: {(isCarrying ? "ON" : "OFF")} (override={(isCarrying ? _carryMultiplierOverride.ToString() : "none")})");
         }
         
         /// <summary>
@@ -112,7 +131,8 @@ namespace Run4theRelic.Player
             // Apply carry slow effect if no custom speed
             if (_customMoveSpeed < 0f && _isCarryingRelic)
             {
-                effectiveSpeed *= carrySlowMultiplier;
+                float multiplier = _carryMultiplierOverride.HasValue ? _carryMultiplierOverride.Value : carrySlowMultiplier;
+                effectiveSpeed *= multiplier;
             }
             
             // Apply custom speed if set
