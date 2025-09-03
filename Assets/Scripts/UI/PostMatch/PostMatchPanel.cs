@@ -1,8 +1,8 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using Core;
+using Run4theRelic.Core;
 
-namespace UI.PostMatch
+namespace Run4theRelic.UI.PostMatch
 {
 	/// <summary>Enkel resultatskärm. Visar text + restart-knapp.</summary>
 	public class PostMatchPanel : MonoBehaviour
@@ -24,12 +24,12 @@ namespace UI.PostMatch
 		void Start()
 		{
 			if (panelRoot) panelRoot.SetActive(false);
-			Core.GameEvents.OnRelicExtracted += OnWin;
+			GameEvents.OnRelicExtracted += OnWin;
 		}
 
 		void OnDestroy()
 		{
-			Core.GameEvents.OnRelicExtracted -= OnWin;
+			GameEvents.OnRelicExtracted -= OnWin;
 		}
 
 		void OnWin(int _)

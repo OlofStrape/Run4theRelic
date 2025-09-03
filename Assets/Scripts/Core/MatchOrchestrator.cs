@@ -1,5 +1,6 @@
 using UnityEngine;
 using Run4theRelic.Core;
+using Run4theRelic.Sabotage;
 
 namespace Run4theRelic.Core
 {
@@ -23,6 +24,7 @@ namespace Run4theRelic.Core
         private MatchPhase _currentPhase = MatchPhase.Lobby;
         private float _phaseTimer;
         private bool _isMatchActive;
+        private SabotageManager _sabotageManager;
         
         /// <summary>
         /// Aktuell match-fas.
@@ -38,6 +40,7 @@ namespace Run4theRelic.Core
         {
             // Prenumerera på pussel-events
             GameEvents.OnPuzzleCompleted += OnPuzzleCompleted;
+            _sabotageManager = FindFirstObjectByType<SabotageManager>();
             
             // Starta i Lobby-fasen
             SetPhase(MatchPhase.Lobby);
@@ -152,6 +155,10 @@ namespace Run4theRelic.Core
                     break;
                 case MatchPhase.GoldTimeSabotage:
                     // Timer redan satt via phaseDuration ovan
+                    if (_sabotageManager != null)
+                    {
+                        _sabotageManager.ApplyFog(5f);
+                    }
                     break;
                 case MatchPhase.Final:
                     // Relic kommer spawnas via SpawnRelic()
