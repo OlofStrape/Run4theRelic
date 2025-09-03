@@ -1,5 +1,7 @@
 using UnityEngine;
 using Run4theRelic.Core;
+using Run4theRelic.Sabotage;
+using Run4theRelic.UI;
 
 namespace Run4theRelic.Puzzles
 {
@@ -148,6 +150,22 @@ namespace Run4theRelic.Puzzles
             
             OnPuzzleComplete();
             
+            if (isGoldTime)
+            {
+                var tokenBank = Object.FindObjectOfType<SabotageTokenBank>(true);
+                if (tokenBank != null) tokenBank.Add(1);
+                var wheel = Object.FindObjectOfType<SabotageWheel>(true);
+                if (wheel != null)
+                {
+                    wheel.Show(new[]
+                    {
+                        SabotageWheel.Option.Fog,
+                        SabotageWheel.Option.TimeDrain,
+                        SabotageWheel.Option.FakeClues
+                    });
+                }
+            }
+            
             if (showDebugInfo)
             {
                 string timeStatus = isGoldTime ? "GOLD TIME!" : "Normal completion";
@@ -228,6 +246,16 @@ namespace Run4theRelic.Puzzles
             
             // Säkerställ att timeLimit är positivt
             timeLimit = Mathf.Max(0.1f, timeLimit);
+        }
+        
+        /// <summary>
+        /// Reducerar återstående tid om pusslet är aktivt.
+        /// </summary>
+        public void ReduceTimeRemaining(float seconds)
+        {
+            if (seconds <= 0f) return;
+            if (!_isActive || _isCompleted || _isFailed) return;
+            _currentTime = Mathf.Max(0f, _currentTime - seconds);
         }
     }
 } 
