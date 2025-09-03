@@ -49,6 +49,7 @@ namespace Run4theRelic.Relic
         private Collider _collider;
         private float _gripReleaseTimer;
         private bool _gripWasReleasedTogether;
+        private Transform _carryAnchor; // resolved hand anchor on the current carrier
         
         /// <summary>
         /// Is the Relic currently being carried by a player.
@@ -139,6 +140,7 @@ namespace Run4theRelic.Relic
             // Pick up the Relic
             _carrier = player;
             _isCarried = true;
+            _carryAnchor = FindBestAnchorOnCarrier(player);
             
             // Disable physics while carried
             if (_rigidbody != null)
@@ -209,6 +211,7 @@ namespace Run4theRelic.Relic
             // Reset state
             _carrier = null;
             _isCarried = false;
+            _carryAnchor = null;
         }
         
         /// <summary>
@@ -237,6 +240,7 @@ namespace Run4theRelic.Relic
             _isCarried = false;
             _gripReleaseTimer = 0f;
             _gripWasReleasedTogether = false;
+            _carryAnchor = null;
             
             if (showDebugInfo)
             {
@@ -372,9 +376,46 @@ namespace Run4theRelic.Relic
         private Transform ResolveAnchor()
         {
             if (_carrier == null) return null;
+            if (_carryAnchor != null) return _carryAnchor;
             if (rightHandAnchor != null) return rightHandAnchor;
             if (fallbackAnchor != null) return fallbackAnchor;
             return _carrier;
+        }
+
+        private Transform FindBestAnchorOnCarrier(Transform player)
+        {
+            if (player == null) return null;
+            string[] candidateNames =
+            {
+                "RightHand",
+                "Right Hand",
+                "RightController",
+                "Right Controller",
+                "RightHandAnchor",
+                "RightHand Controller",
+                "Right"
+            };
+            Transform[] allChildren = player.GetComponentsInChildren<Transform>(true);
+            foreach (var t in allChildren)
+            {
+                string n = t.name;
+                for (int i = 0; i < candidateNames.Length; i++)
+                {
+                    if (n.Equals(candidateNames[i], System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        return t;
+                    }
+                }
+            }
+            foreach (var t in allChildren)
+            {
+                string lower = t.name.ToLowerInvariant();
+                if (lower.Contains("right") && (lower.Contains("hand") || lower.Contains("controller") || lower.Contains("anchor")))
+                {
+                    return t;
+                }
+            }
+            return player;
         }
 
         private void UpdateGripCheckAndMaybeForceDrop()

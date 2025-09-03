@@ -174,6 +174,7 @@ namespace Run4theRelic.Relic
             
             // Trigger victory event
             GameEvents.TriggerRelicExtracted(-1); // -1 = singleplayer
+            Debug.Log("WIN: Relic extracted! You win!");
             
             // Reset extraction state
             _isExtracting = false;
