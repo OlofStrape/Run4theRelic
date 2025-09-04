@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Run4theRelic.Puzzles;
+using Run4theRelic.Core;
 
 namespace Run4theRelic.Puzzles.CableConnect
 {
@@ -19,6 +20,9 @@ namespace Run4theRelic.Puzzles.CableConnect
         [SerializeField] private bool showConnectionStatus = true;
         
         private bool _wasCompleted;
+        private VRPerformanceAnalytics _analytics;
+        private VRAIGameplayDirector _aiDirector;
+        private const PuzzleType _analyticsPuzzleType = PuzzleType.PatternMatching;
         
         protected override void OnFailed()
         {
@@ -36,12 +40,21 @@ namespace Run4theRelic.Puzzles.CableConnect
             // Verify setup
             ValidateSetup();
             
+            // Resolve analytics + AI
+            if (_analytics == null) _analytics = FindObjectOfType<VRPerformanceAnalytics>(true);
+            if (_aiDirector == null) _aiDirector = FindObjectOfType<VRAIGameplayDirector>(true);
+
             Debug.Log($"Cable Connect puzzle started with {sockets.Count} sockets and {plugs.Count} plugs");
         }
         
-        protected override void OnPuzzleComplete()
+        protected override void OnCompletePuzzle(float clearTime, bool gold)
         {
-            // Puzzle logic handled in base class
+            // Analytics: record successful attempt
+            if (_analytics != null)
+            {
+                float difficulty = _aiDirector != null ? _aiDirector.GetCurrentDifficulty() : 5f;
+                _analytics.RecordPuzzleAttempt(_analyticsPuzzleType, true, clearTime, difficulty);
+            }
             Debug.Log("Cable Connect puzzle completed!");
         }
         
@@ -49,6 +62,23 @@ namespace Run4theRelic.Puzzles.CableConnect
         {
             // Puzzle logic handled in base class
             Debug.Log("Cable Connect puzzle failed - time expired!");
+        }
+
+        protected override void OnFailed()
+        {
+            base.OnFailed();
+            // Analytics: record failed attempt with time spent
+            float timeSpent = timeLimit - Mathf.Max(_timer, 0f);
+            if (_analytics == null) _analytics = FindObjectOfType<VRPerformanceAnalytics>(true);
+            if (_aiDirector == null) _aiDirector = FindObjectOfType<VRAIGameplayDirector>(true);
+            if (_analytics != null)
+            {
+                float difficulty = _aiDirector != null ? _aiDirector.GetCurrentDifficulty() : 5f;
+                _analytics.RecordPuzzleAttempt(_analyticsPuzzleType, false, timeSpent, difficulty);
+            }
+            ResetPuzzle();
+            // Optionally allow immediate retry by restarting the timer:
+            // _timer = timeLimit; _isFailed = false; _isCompleted = false;
         }
         
         protected override void OnPuzzleReset()

@@ -10,9 +10,10 @@ namespace Run4theRelic.Core
     public static class GameEvents
     {
         // Puzzle Events
-        public static event System.Action<string, float, bool> OnPuzzleCompleted;
+        public static event System.Action<int, float> OnPuzzleCompleted; // playerId, clearTime
         public static event System.Action<string> OnPuzzleStarted;
         public static event System.Action<string> OnPuzzleFailed;
+        public static event System.Action<int, int> OnPuzzleTimerTick; // secondsRemaining, secondsLimit
         
         // Room Events
         public static event System.Action<string> OnRoomEntered;
@@ -23,17 +24,24 @@ namespace Run4theRelic.Core
         public static event System.Action<string> OnRelicCollected;
         public static event System.Action<string> OnRelicPlaced;
         public static event System.Action<string> OnRelicActivated;
+        public static event System.Action OnRelicSpawned;
+        public static event System.Action<int> OnRelicPickedUp;   // playerId
+        public static event System.Action<int> OnRelicDropped;    // playerId
+        public static event System.Action<int> OnRelicExtracted;  // playerId
         
         // Player Events
         public static event System.Action<float> OnPlayerHealthChanged;
         public static event System.Action<int> OnPlayerScoreChanged;
         public static event System.Action<string> OnPlayerLevelUp;
         
-        // Game State Events
+        // Game State / Match Phase Events
         public static event System.Action OnGameStarted;
         public static event System.Action OnGamePaused;
         public static event System.Action OnGameResumed;
         public static event System.Action OnGameEnded;
+        public static event System.Action OnMatchEnded;
+        public static event System.Action<MatchPhase> OnMatchPhaseChanged;
+        public static event System.Action<MatchPhase, float> OnPhaseChanged; // phase, duration
         
         // VR Events
         public static event System.Action OnVRHeadsetConnected;
@@ -52,6 +60,7 @@ namespace Run4theRelic.Core
         public static event System.Action<float> OnDifficultyChanged;
         public static event System.Action<string> OnPlayerBehaviorDetected;
         public static event System.Action<float> OnPerformanceAnalyzed;
+        public static event System.Action<string, float> OnSabotaged; // type, magnitude/duration
         
         // Story Events
         public static event System.Action<string> OnStoryElementGenerated;
@@ -59,9 +68,9 @@ namespace Run4theRelic.Core
         public static event System.Action<string> OnMoodChanged;
         
         // Utility Methods
-        public static void TriggerPuzzleCompleted(string puzzleId, float completionTime, bool isPerfect)
+        public static void TriggerPuzzleCompleted(int playerId, float completionTime)
         {
-            OnPuzzleCompleted?.Invoke(puzzleId, completionTime, isPerfect);
+            OnPuzzleCompleted?.Invoke(playerId, completionTime);
         }
         
         public static void TriggerPuzzleStarted(string puzzleId)
@@ -74,6 +83,11 @@ namespace Run4theRelic.Core
             OnPuzzleFailed?.Invoke(puzzleId);
         }
         
+        public static void TriggerPuzzleTimerTick(int secondsRemaining, int secondsLimit)
+        {
+            OnPuzzleTimerTick?.Invoke(secondsRemaining, secondsLimit);
+        }
+
         public static void TriggerRoomEntered(string roomId)
         {
             OnRoomEntered?.Invoke(roomId);
@@ -102,6 +116,26 @@ namespace Run4theRelic.Core
         public static void TriggerRelicActivated(string relicId)
         {
             OnRelicActivated?.Invoke(relicId);
+        }
+
+        public static void TriggerRelicSpawned()
+        {
+            OnRelicSpawned?.Invoke();
+        }
+
+        public static void TriggerRelicPickedUp(int playerId)
+        {
+            OnRelicPickedUp?.Invoke(playerId);
+        }
+
+        public static void TriggerRelicDropped(int playerId)
+        {
+            OnRelicDropped?.Invoke(playerId);
+        }
+
+        public static void TriggerRelicExtracted(int playerId)
+        {
+            OnRelicExtracted?.Invoke(playerId);
         }
         
         public static void TriggerPlayerHealthChanged(float newHealth)
@@ -137,6 +171,11 @@ namespace Run4theRelic.Core
         public static void TriggerGameEnded()
         {
             OnGameEnded?.Invoke();
+        }
+
+        public static void TriggerMatchEnded()
+        {
+            OnMatchEnded?.Invoke();
         }
         
         public static void TriggerVRHeadsetConnected()
@@ -198,6 +237,11 @@ namespace Run4theRelic.Core
         {
             OnPerformanceAnalyzed?.Invoke(performance);
         }
+
+        public static void TriggerSabotaged(string type, float amount)
+        {
+            OnSabotaged?.Invoke(type, amount);
+        }
         
         public static void TriggerStoryElementGenerated(string elementId)
         {
@@ -213,6 +257,16 @@ namespace Run4theRelic.Core
         {
             OnMoodChanged?.Invoke(newMood);
         }
+
+        public static void TriggerMatchPhaseChanged(MatchPhase phase)
+        {
+            OnMatchPhaseChanged?.Invoke(phase);
+        }
+
+        public static void TriggerPhaseChanged(MatchPhase phase, float duration)
+        {
+            OnPhaseChanged?.Invoke(phase, duration);
+        }
     }
     
     /// <summary>
@@ -227,6 +281,21 @@ namespace Run4theRelic.Core
         Logic,              // Logikpussel
         Physics,            // Fysikbaserade pussel
         Combination         // Kombinerade pusseltyper
+    }
+
+    /// <summary>
+    /// Matchfaser för progression under en match
+    /// </summary>
+    public enum MatchPhase
+    {
+        Lobby,
+        Countdown,
+        Puzzle1,
+        Puzzle2,
+        Puzzle3,
+        GoldTimeSabotage,
+        Final,
+        PostMatch
     }
     
     /// <summary>
