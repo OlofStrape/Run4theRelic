@@ -6,359 +6,343 @@ using System.Collections.Generic;
 namespace Run4theRelic.Core
 {
     /// <summary>
-    /// Central manager for all VR functionality in Run4theRelic.
-    /// Handles VR input, camera setup, comfort settings, and device detection.
+    /// Central VR-hantering för Run4theRelic
+    /// Hanterar enhetsdetektering, setup och grundläggande VR-funktionalitet
     /// </summary>
     public class VRManager : MonoBehaviour
     {
-        [Header("VR Setup")]
-        [SerializeField] private bool autoSetupVR = true;
-        [SerializeField] private GameObject vrRigPrefab;
-        [SerializeField] private Transform playerSpawnPoint;
+        [Header("VR Device Settings")]
+        [SerializeField] private bool autoDetectDevice = true;
+        [SerializeField] private VRDeviceType preferredDevice = VRDeviceType.OculusQuest;
         
-        [Header("VR Comfort Settings")]
-        [SerializeField] private bool enableBlink = true;
-        [SerializeField] private bool enableVignette = true;
-        [SerializeField] private float blinkDuration = 0.3f;
-        [SerializeField] private float vignetteIntensity = 0.3f;
-        
-        [Header("VR Input")]
-        [SerializeField] private bool enableHandTracking = true;
-        [SerializeField] private bool enableHapticFeedback = true;
-        [SerializeField] private float hapticIntensity = 0.5f;
-        
-        [Header("References")]
-        [SerializeField] private Camera mainCamera;
-        [SerializeField] private XRInteractionManager interactionManager;
+        [Header("VR Components")]
         [SerializeField] private XROrigin xrOrigin;
+        [SerializeField] private XRInteractionManager interactionManager;
+        [SerializeField] private XRController leftController;
+        [SerializeField] private XRController rightController;
         
-        // VR State
-        private bool _isVRMode = false;
-        private bool _isInitialized = false;
-        private XRDevice _currentDevice = XRDevice.Unknown;
+        [Header("VR Features")]
+        [SerializeField] private bool enableHaptics = true;
+        [SerializeField] private bool enableHandTracking = true;
+        [SerializeField] private float hapticIntensity = 0.8f;
         
-        // VR Components
-        private GameObject _vrRig;
-        private XRController _leftController;
-        private XRController _rightController;
-        private XRHandSubsystem _handSubsystem;
+        // Private fields
+        private VRDeviceType currentDevice = VRDeviceType.None;
+        private bool isVRReady = false;
+        private List<InputDevice> vrControllers = new List<InputDevice>();
+        private List<InputDevice> vrHands = new List<InputDevice>();
         
         // Events
-        public static event System.Action<bool> OnVRModeChanged;
-        public static event System.Action<XRDevice> OnVRDeviceChanged;
-        
-        /// <summary>
-        /// Is the game currently running in VR mode.
-        /// </summary>
-        public bool IsVRMode => _isVRMode;
-        
-        /// <summary>
-        /// Current VR device being used.
-        /// </summary>
-        public XRDevice CurrentDevice => _currentDevice;
-        
-        /// <summary>
-        /// Is VR system fully initialized.
-        /// </summary>
-        public bool IsInitialized => _isInitialized;
-        
-        private void Awake()
-        {
-            // Ensure singleton pattern
-            if (FindObjectsOfType<VRManager>().Length > 1)
-            {
-                Destroy(gameObject);
-                return;
-            }
-            
-            DontDestroyOnLoad(gameObject);
-        }
+        public static event System.Action<VRDeviceType> OnVRDeviceConnected;
+        public static event System.Action OnVRDeviceDisconnected;
+        public static event System.Action<bool> OnVRReadyChanged;
         
         private void Start()
         {
-            if (autoSetupVR)
+            InitializeVR();
+        }
+        
+        private void Update()
+        {
+            if (isVRReady)
             {
-                InitializeVR();
+                UpdateVRInput();
             }
         }
         
         /// <summary>
-        /// Initialize VR system and setup.
+        /// Initialize VR-systemet
         /// </summary>
-        public void InitializeVR()
+        private void InitializeVR()
         {
-            if (_isInitialized) return;
-            
-            Debug.Log("VRManager: Initializing VR system...");
-            
-            // Check if VR is available
-            if (!XRSettings.isDeviceActive)
+            if (autoDetectDevice)
             {
-                Debug.LogWarning("VRManager: No VR device detected, running in desktop mode");
-                _isVRMode = false;
-                _isInitialized = true;
-                return;
+                DetectVRDevice();
+            }
+            else
+            {
+                SetPreferredDevice(preferredDevice);
             }
             
-            // Setup VR
-            SetupVRMode();
-            
-            // Initialize components
-            InitializeVRComponents();
-            
-            // Setup comfort settings
-            SetupComfortSettings();
-            
-            _isInitialized = true;
-            _isVRMode = true;
-            
-            OnVRModeChanged?.Invoke(true);
-            OnVRDeviceChanged?.Invoke(_currentDevice);
-            
-            Debug.Log($"VRManager: VR system initialized successfully. Device: {_currentDevice}");
+            SetupVRComponents();
+            SetupEventListeners();
         }
         
         /// <summary>
-        /// Setup VR mode and create VR rig.
+        /// Automatisk detektering av VR-enhet
         /// </summary>
-        private void SetupVRMode()
+        private void DetectVRDevice()
         {
-            // Create VR rig if prefab is assigned
-            if (vrRigPrefab != null)
+            var devices = new List<InputDevice>();
+            InputDevices.GetDevicesWithCharacteristics(
+                InputDeviceCharacteristics.HeadMounted, 
+                devices
+            );
+            
+            if (devices.Count > 0)
             {
-                _vrRig = Instantiate(vrRigPrefab);
-                if (playerSpawnPoint != null)
+                var device = devices[0];
+                var deviceName = device.name.ToLower();
+                
+                if (deviceName.Contains("quest"))
                 {
-                    _vrRig.transform.position = playerSpawnPoint.position;
-                    _vrRig.transform.rotation = playerSpawnPoint.rotation;
+                    SetVRDevice(VRDeviceType.OculusQuest);
+                }
+                else if (deviceName.Contains("rift"))
+                {
+                    SetVRDevice(VRDeviceType.OculusRift);
+                }
+                else if (deviceName.Contains("vive"))
+                {
+                    SetVRDevice(VRDeviceType.HTCVive);
+                }
+                else if (deviceName.Contains("index"))
+                {
+                    SetVRDevice(VRDeviceType.ValveIndex);
+                }
+                else if (deviceName.Contains("windows") || deviceName.Contains("mr"))
+                {
+                    SetVRDevice(VRDeviceType.WindowsMR);
+                }
+                else
+                {
+                    SetVRDevice(VRDeviceType.Other);
                 }
             }
-            
-            // Setup XR Origin
+            else
+            {
+                Debug.LogWarning("[VRManager] No VR device detected!");
+                SetVRDevice(VRDeviceType.None);
+            }
+        }
+        
+        /// <summary>
+        /// Sätt specifik VR-enhet
+        /// </summary>
+        private void SetPreferredDevice(VRDeviceType deviceType)
+        {
+            SetVRDevice(deviceType);
+        }
+        
+        /// <summary>
+        /// Uppdatera VR-enhet och notifiera listeners
+        /// </summary>
+        private void SetVRDevice(VRDeviceType deviceType)
+        {
+            if (currentDevice != deviceType)
+            {
+                currentDevice = deviceType;
+                
+                if (deviceType != VRDeviceType.None)
+                {
+                    OnVRDeviceConnected?.Invoke(deviceType);
+                    Debug.Log($"[VRManager] VR device connected: {deviceType}");
+                }
+                else
+                {
+                    OnVRDeviceDisconnected?.Invoke();
+                    Debug.Log("[VRManager] VR device disconnected");
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Setup VR-komponenter
+        /// </summary>
+        private void SetupVRComponents()
+        {
+            // Find XR Origin if not assigned
             if (xrOrigin == null)
             {
                 xrOrigin = FindObjectOfType<XROrigin>();
             }
             
-            if (xrOrigin == null)
-            {
-                Debug.LogError("VRManager: No XROrigin found! VR setup may not work correctly.");
-            }
-            
-            // Setup main camera
-            if (mainCamera == null)
-            {
-                mainCamera = Camera.main;
-            }
-            
-            // Detect VR device
-            DetectVRDevice();
-        }
-        
-        /// <summary>
-        /// Initialize VR-specific components.
-        /// </summary>
-        private void InitializeVRComponents()
-        {
-            // Setup interaction manager
+            // Find Interaction Manager if not assigned
             if (interactionManager == null)
             {
                 interactionManager = FindObjectOfType<XRInteractionManager>();
             }
             
-            // Setup controllers
-            SetupControllers();
-            
-            // Setup hand tracking
-            if (enableHandTracking)
+            // Find controllers if not assigned
+            if (leftController == null || rightController == null)
             {
-                SetupHandTracking();
-            }
-        }
-        
-        /// <summary>
-        /// Setup VR controllers.
-        /// </summary>
-        private void SetupControllers()
-        {
-            if (_vrRig != null)
-            {
-                _leftController = _vrRig.GetComponentInChildren<XRController>();
-                _rightController = _vrRig.GetComponentInChildren<XRController>();
-            }
-            
-            if (_leftController == null || _rightController == null)
-            {
-                Debug.LogWarning("VRManager: Controllers not found, some VR features may not work");
-            }
-        }
-        
-        /// <summary>
-        /// Setup hand tracking system.
-        /// </summary>
-        private void SetupHandTracking()
-        {
-            var subsystems = new List<XRHandSubsystem>();
-            SubsystemManager.GetInstances(subsystems);
-            
-            if (subsystems.Count > 0)
-            {
-                _handSubsystem = subsystems[0];
-                Debug.Log("VRManager: Hand tracking system initialized");
-            }
-            else
-            {
-                Debug.LogWarning("VRManager: Hand tracking not available on this device");
-            }
-        }
-        
-        /// <summary>
-        /// Setup VR comfort settings.
-        /// </summary>
-        private void SetupComfortSettings()
-        {
-            // Apply comfort settings based on device
-            switch (_currentDevice)
-            {
-                case XRDevice.Oculus:
-                    // Oculus-specific comfort settings
-                    break;
-                case XRDevice.Vive:
-                    // Vive-specific comfort settings
-                    break;
-                case XRDevice.WindowsMR:
-                    // Windows MR-specific comfort settings
-                    break;
-            }
-        }
-        
-        /// <summary>
-        /// Detect current VR device.
-        /// </summary>
-        private void DetectVRDevice()
-        {
-            string deviceName = XRSettings.loadedDeviceName.ToLower();
-            
-            if (deviceName.Contains("oculus") || deviceName.Contains("quest"))
-            {
-                _currentDevice = XRDevice.Oculus;
-            }
-            else if (deviceName.Contains("vive"))
-            {
-                _currentDevice = XRDevice.Vive;
-            }
-            else if (deviceName.Contains("windows") || deviceName.Contains("mr"))
-            {
-                _currentDevice = XRDevice.WindowsMR;
-            }
-            else
-            {
-                _currentDevice = XRDevice.Unknown;
-            }
-            
-            Debug.Log($"VRManager: Detected VR device: {_currentDevice} ({deviceName})");
-        }
-        
-        /// <summary>
-        /// Trigger haptic feedback on controller.
-        /// </summary>
-        /// <param name="controller">Controller to trigger haptics on.</param>
-        /// <param name="intensity">Haptic intensity (0-1).</param>
-        /// <param name="duration">Haptic duration in seconds.</param>
-        public void TriggerHapticFeedback(XRController controller, float intensity = -1f, float duration = 0.1f)
-        {
-            if (!enableHapticFeedback || controller == null) return;
-            
-            float hapticIntensityToUse = intensity >= 0f ? intensity : this.hapticIntensity;
-            
-            if (controller.inputDevice.isValid)
-            {
-                HapticCapabilities capabilities;
-                if (controller.inputDevice.TryGetHapticCapabilities(out capabilities))
+                var controllers = FindObjectsOfType<XRController>();
+                foreach (var controller in controllers)
                 {
-                    if (capabilities.supportsImpulse)
+                    if (controller.controllerNode == XRNode.LeftHand)
                     {
-                        controller.inputDevice.SendHapticImpulse(0, hapticIntensityToUse, duration);
+                        leftController = controller;
+                    }
+                    else if (controller.controllerNode == XRNode.RightHand)
+                    {
+                        rightController = controller;
                     }
                 }
             }
-        }
-        
-        /// <summary>
-        /// Trigger haptic feedback on both controllers.
-        /// </summary>
-        /// <param name="intensity">Haptic intensity (0-1).</param>
-        /// <param name="duration">Haptic duration in seconds.</param>
-        public void TriggerHapticFeedbackBoth(float intensity = -1f, float duration = 0.1f)
-        {
-            if (_leftController != null)
-            {
-                TriggerHapticFeedback(_leftController, intensity, duration);
-            }
             
-            if (_rightController != null)
+            // Check if VR is ready
+            isVRReady = (xrOrigin != null && interactionManager != null);
+            OnVRReadyChanged?.Invoke(isVRReady);
+            
+            if (isVRReady)
             {
-                TriggerHapticFeedback(_rightController, intensity, duration);
+                Debug.Log("[VRManager] VR components setup complete");
+            }
+            else
+            {
+                Debug.LogWarning("[VRManager] Some VR components are missing!");
             }
         }
         
         /// <summary>
-        /// Get VR rig GameObject.
+        /// Setup event listeners
         /// </summary>
-        /// <returns>VR rig GameObject or null if not created.</returns>
-        public GameObject GetVRRig()
+        private void SetupEventListeners()
         {
-            return _vrRig;
+            // Listen for VR device changes
+            InputDevices.deviceConnected += OnDeviceConnected;
+            InputDevices.deviceDisconnected += OnDeviceDisconnected;
         }
         
         /// <summary>
-        /// Get left controller.
+        /// Update VR input
         /// </summary>
-        /// <returns>Left XRController or null if not found.</returns>
+        private void UpdateVRInput()
+        {
+            // Update controller list
+            InputDevices.GetDevicesWithCharacteristics(
+                InputDeviceCharacteristics.Controller | InputDeviceCharacteristics.HeldInHand,
+                vrControllers
+            );
+            
+            // Update hand tracking if enabled
+            if (enableHandTracking)
+            {
+                InputDevices.GetDevicesWithCharacteristics(
+                    InputDeviceCharacteristics.HandTracking,
+                    vrHands
+                );
+            }
+        }
+        
+        /// <summary>
+        /// Handle device connection
+        /// </summary>
+        private void OnDeviceConnected(InputDevice device)
+        {
+            Debug.Log($"[VRManager] Device connected: {device.name}");
+            
+            if (device.characteristics.HasFlag(InputDeviceCharacteristics.HeadMounted))
+            {
+                DetectVRDevice();
+            }
+        }
+        
+        /// <summary>
+        /// Handle device disconnection
+        /// </summary>
+        private void OnDeviceDisconnected(InputDevice device)
+        {
+            Debug.Log($"[VRManager] Device disconnected: {device.name}");
+            
+            if (device.characteristics.HasFlag(InputDeviceCharacteristics.HeadMounted))
+            {
+                SetVRDevice(VRDeviceType.None);
+            }
+        }
+        
+        /// <summary>
+        /// Send haptic feedback to controller
+        /// </summary>
+        public void SendHapticFeedback(XRNode controllerNode, float intensity = 1.0f, float duration = 0.1f)
+        {
+            if (!enableHaptics) return;
+            
+            var controller = (controllerNode == XRNode.LeftHand) ? leftController : rightController;
+            if (controller != null)
+            {
+                controller.SendHapticImpulse(intensity * hapticIntensity, duration);
+            }
+        }
+        
+        /// <summary>
+        /// Send haptic feedback to both controllers
+        /// </summary>
+        public void SendHapticFeedbackToBoth(float intensity = 1.0f, float duration = 0.1f)
+        {
+            SendHapticFeedback(XRNode.LeftHand, intensity, duration);
+            SendHapticFeedback(XRNode.RightHand, intensity, duration);
+        }
+        
+        /// <summary>
+        /// Get left controller
+        /// </summary>
         public XRController GetLeftController()
         {
-            return _leftController;
+            return leftController;
         }
         
         /// <summary>
-        /// Get right controller.
+        /// Get right controller
         /// </summary>
-        /// <returns>Right XRController or null if not found.</returns>
         public XRController GetRightController()
         {
-            return _rightController;
+            return rightController;
         }
         
         /// <summary>
-        /// Toggle VR comfort settings.
+        /// Get XR Origin
         /// </summary>
-        /// <param name="enable">Enable or disable comfort settings.</param>
-        public void ToggleComfortSettings(bool enable)
+        public XROrigin GetXROrigin()
         {
-            enableBlink = enable;
-            enableVignette = enable;
-            
-            Debug.Log($"VRManager: Comfort settings {(enable ? "enabled" : "disabled")}");
+            return xrOrigin;
+        }
+        
+        /// <summary>
+        /// Get Interaction Manager
+        /// </summary>
+        public XRInteractionManager GetInteractionManager()
+        {
+            return interactionManager;
+        }
+        
+        /// <summary>
+        /// Check if VR is ready
+        /// </summary>
+        public bool IsVRReady()
+        {
+            return isVRReady;
+        }
+        
+        /// <summary>
+        /// Get current VR device type
+        /// </summary>
+        public VRDeviceType GetCurrentDevice()
+        {
+            return currentDevice;
+        }
+        
+        /// <summary>
+        /// Get VR controllers
+        /// </summary>
+        public List<InputDevice> GetVRControllers()
+        {
+            return new List<InputDevice>(vrControllers);
+        }
+        
+        /// <summary>
+        /// Get VR hands
+        /// </summary>
+        public List<InputDevice> GetVRHands()
+        {
+            return new List<InputDevice>(vrHands);
         }
         
         private void OnDestroy()
         {
-            // Cleanup
-            if (_handSubsystem != null)
-            {
-                _handSubsystem = null;
-            }
+            // Clean up event listeners
+            InputDevices.deviceConnected -= OnDeviceConnected;
+            InputDevices.deviceDisconnected -= OnDeviceDisconnected;
         }
-    }
-    
-    /// <summary>
-    /// VR device types for device-specific optimizations.
-    /// </summary>
-    public enum XRDevice
-    {
-        Unknown,
-        Oculus,
-        Vive,
-        WindowsMR
     }
 }

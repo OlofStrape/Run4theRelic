@@ -1,135 +1,271 @@
 using System;
+using UnityEngine;
 
 namespace Run4theRelic.Core
 {
     /// <summary>
-    /// Central kommunikationshub för alla system via statiska events.
-    /// Löst kopplade system kan kommunicera utan direkta referenser.
+    /// Centrala spelhändelser för Run4theRelic
+    /// Hanterar kommunikation mellan olika system
     /// </summary>
     public static class GameEvents
     {
-        // Pussel-events
-        /// <summary>
-        /// Triggas när ett pussel är löst. playerId = -1 för singleplayer.
-        /// </summary>
-        public static event Action<int, float> OnPuzzleCompleted; // playerId, clearTime
-        /// <summary>
-        /// Triggas varje sekund medan ett pussel är aktivt. Parametrar: sekunder kvar (avrundat uppåt), samt ursprunglig limit i sekunder.
-        /// </summary>
-        public static event Action<int, int> OnPuzzleTimerTick; // secondsRemaining, secondsLimit
+        // Puzzle Events
+        public static event System.Action<string, float, bool> OnPuzzleCompleted;
+        public static event System.Action<string> OnPuzzleStarted;
+        public static event System.Action<string> OnPuzzleFailed;
         
-        /// <summary>
-        /// Triggas när en spelare elimineras.
-        /// </summary>
-        public static event Action<int> OnPlayerEliminated; // playerId
+        // Room Events
+        public static event System.Action<string> OnRoomEntered;
+        public static event System.Action<string> OnRoomExited;
+        public static event System.Action<string> OnRoomCompleted;
         
-        // Relic-events
-        /// <summary>
-        /// Triggas när Relic:en spawnas i Final-fasen.
-        /// </summary>
-        public static event Action OnRelicSpawned;
+        // Relic Events
+        public static event System.Action<string> OnRelicCollected;
+        public static event System.Action<string> OnRelicPlaced;
+        public static event System.Action<string> OnRelicActivated;
         
-        /// <summary>
-        /// Triggas när en spelare plockar upp Relic:en.
-        /// </summary>
-        public static event Action<int> OnRelicPickedUp; // playerId
+        // Player Events
+        public static event System.Action<float> OnPlayerHealthChanged;
+        public static event System.Action<int> OnPlayerScoreChanged;
+        public static event System.Action<string> OnPlayerLevelUp;
         
-        /// <summary>
-        /// Triggas när Relic:en släpps.
-        /// </summary>
-        public static event Action<int> OnRelicDropped; // playerId
+        // Game State Events
+        public static event System.Action OnGameStarted;
+        public static event System.Action OnGamePaused;
+        public static event System.Action OnGameResumed;
+        public static event System.Action OnGameEnded;
         
-        /// <summary>
-        /// Triggas när Relic:en extraheras för vinst.
-        /// </summary>
-        public static event Action<int> OnRelicExtracted; // playerId
+        // VR Events
+        public static event System.Action OnVRHeadsetConnected;
+        public static event System.Action OnVRHeadsetDisconnected;
+        public static event System.Action OnVRControllerConnected;
+        public static event System.Action OnVRControllerDisconnected;
         
-        // Match-events
-        /// <summary>
-        /// Triggas när match-fasen ändras.
-        /// </summary>
-        public static event Action<MatchPhase> OnMatchPhaseChanged;
-        /// <summary>
-        /// Triggas när fas byts, inklusive en varaktighet (sekunder). 0 om ingen timer.
-        /// </summary>
-        public static event Action<MatchPhase, float> OnPhaseChanged;
-        /// <summary>
-        /// Triggas när matchen är slut.
-        /// </summary>
-        public static event Action OnMatchEnded;
+        // Content Generation Events
+        public static event System.Action<string> OnRoomGenerated;
+        public static event System.Action<string> OnPuzzleGenerated;
+        public static event System.Action<float> OnGenerationProgress;
+        public static event System.Action<string> OnGenerationCompleted;
+        public static event System.Action<string> OnGenerationFailed;
         
-        // Sabotage-events
-        /// <summary>
-        /// Triggas när ett sabotage aktiveras. Arg1 = typ ("fog"/"timedrain"/"fakeclues"), Arg2 = värde (t.ex. varaktighet eller sekunder).
-        /// </summary>
-        public static event Action<string, float> OnSabotaged;
+        // AI Events
+        public static event System.Action<float> OnDifficultyChanged;
+        public static event System.Action<string> OnPlayerBehaviorDetected;
+        public static event System.Action<float> OnPerformanceAnalyzed;
         
-        // Event-triggers (endast för interna system)
-        internal static void TriggerPuzzleCompleted(int playerId, float clearTime)
+        // Story Events
+        public static event System.Action<string> OnStoryElementGenerated;
+        public static event System.Action<string> OnStoryElementCompleted;
+        public static event System.Action<string> OnMoodChanged;
+        
+        // Utility Methods
+        public static void TriggerPuzzleCompleted(string puzzleId, float completionTime, bool isPerfect)
         {
-            OnPuzzleCompleted?.Invoke(playerId, clearTime);
-        }
-        internal static void TriggerPuzzleTimerTick(int secondsRemaining, int secondsLimit)
-        {
-            OnPuzzleTimerTick?.Invoke(secondsRemaining, secondsLimit);
+            OnPuzzleCompleted?.Invoke(puzzleId, completionTime, isPerfect);
         }
         
-        internal static void TriggerPlayerEliminated(int playerId)
+        public static void TriggerPuzzleStarted(string puzzleId)
         {
-            OnPlayerEliminated?.Invoke(playerId);
+            OnPuzzleStarted?.Invoke(puzzleId);
         }
         
-        internal static void TriggerRelicSpawned()
+        public static void TriggerPuzzleFailed(string puzzleId)
         {
-            OnRelicSpawned?.Invoke();
+            OnPuzzleFailed?.Invoke(puzzleId);
         }
         
-        internal static void TriggerRelicPickedUp(int playerId)
+        public static void TriggerRoomEntered(string roomId)
         {
-            OnRelicPickedUp?.Invoke(playerId);
+            OnRoomEntered?.Invoke(roomId);
         }
         
-        internal static void TriggerRelicDropped(int playerId)
+        public static void TriggerRoomExited(string roomId)
         {
-            OnRelicDropped?.Invoke(playerId);
+            OnRoomExited?.Invoke(roomId);
         }
         
-        internal static void TriggerRelicExtracted(int playerId)
+        public static void TriggerRoomCompleted(string roomId)
         {
-            OnRelicExtracted?.Invoke(playerId);
+            OnRoomCompleted?.Invoke(roomId);
         }
         
-        internal static void TriggerMatchPhaseChanged(MatchPhase newPhase)
+        public static void TriggerRelicCollected(string relicId)
         {
-            OnMatchPhaseChanged?.Invoke(newPhase);
-        }
-        internal static void TriggerPhaseChanged(MatchPhase phase, float duration)
-        {
-            OnPhaseChanged?.Invoke(phase, duration);
-        }
-        internal static void TriggerMatchEnded()
-        {
-            OnMatchEnded?.Invoke();
+            OnRelicCollected?.Invoke(relicId);
         }
         
-        internal static void TriggerSabotaged(string type, float value)
+        public static void TriggerRelicPlaced(string relicId)
         {
-            OnSabotaged?.Invoke(type, value);
+            OnRelicPlaced?.Invoke(relicId);
+        }
+        
+        public static void TriggerRelicActivated(string relicId)
+        {
+            OnRelicActivated?.Invoke(relicId);
+        }
+        
+        public static void TriggerPlayerHealthChanged(float newHealth)
+        {
+            OnPlayerHealthChanged?.Invoke(newHealth);
+        }
+        
+        public static void TriggerPlayerScoreChanged(int newScore)
+        {
+            OnPlayerScoreChanged?.Invoke(newScore);
+        }
+        
+        public static void TriggerPlayerLevelUp(string newLevel)
+        {
+            OnPlayerLevelUp?.Invoke(newLevel);
+        }
+        
+        public static void TriggerGameStarted()
+        {
+            OnGameStarted?.Invoke();
+        }
+        
+        public static void TriggerGamePaused()
+        {
+            OnGamePaused?.Invoke();
+        }
+        
+        public static void TriggerGameResumed()
+        {
+            OnGameResumed?.Invoke();
+        }
+        
+        public static void TriggerGameEnded()
+        {
+            OnGameEnded?.Invoke();
+        }
+        
+        public static void TriggerVRHeadsetConnected()
+        {
+            OnVRHeadsetConnected?.Invoke();
+        }
+        
+        public static void TriggerVRHeadsetDisconnected()
+        {
+            OnVRHeadsetDisconnected?.Invoke();
+        }
+        
+        public static void TriggerVRControllerConnected()
+        {
+            OnVRControllerConnected?.Invoke();
+        }
+        
+        public static void TriggerVRControllerDisconnected()
+        {
+            OnVRControllerDisconnected?.Invoke();
+        }
+        
+        public static void TriggerRoomGenerated(string roomId)
+        {
+            OnRoomGenerated?.Invoke(roomId);
+        }
+        
+        public static void TriggerPuzzleGenerated(string puzzleId)
+        {
+            OnPuzzleGenerated?.Invoke(puzzleId);
+        }
+        
+        public static void TriggerGenerationProgress(float progress)
+        {
+            OnGenerationProgress?.Invoke(progress);
+        }
+        
+        public static void TriggerGenerationCompleted(string result)
+        {
+            OnGenerationCompleted?.Invoke(result);
+        }
+        
+        public static void TriggerGenerationFailed(string error)
+        {
+            OnGenerationFailed?.Invoke(error);
+        }
+        
+        public static void TriggerDifficultyChanged(float newDifficulty)
+        {
+            OnDifficultyChanged?.Invoke(newDifficulty);
+        }
+        
+        public static void TriggerPlayerBehaviorDetected(string behavior)
+        {
+            OnPlayerBehaviorDetected?.Invoke(behavior);
+        }
+        
+        public static void TriggerPerformanceAnalyzed(float performance)
+        {
+            OnPerformanceAnalyzed?.Invoke(performance);
+        }
+        
+        public static void TriggerStoryElementGenerated(string elementId)
+        {
+            OnStoryElementGenerated?.Invoke(elementId);
+        }
+        
+        public static void TriggerStoryElementCompleted(string elementId)
+        {
+            OnStoryElementCompleted?.Invoke(elementId);
+        }
+        
+        public static void TriggerMoodChanged(string newMood)
+        {
+            OnMoodChanged?.Invoke(newMood);
         }
     }
     
     /// <summary>
-    /// Match-faser som definierar spelflödet.
+    /// Pusseltyper som stöds av systemet
     /// </summary>
-    public enum MatchPhase
+    public enum PuzzleType
     {
-        Lobby,           // Vänteläge
-        Countdown,       // 3-2-1 nedräkning
-        Puzzle1,         // Första pussel
-        Puzzle2,         // Andra pussel
-        Puzzle3,         // Tredje pussel
-        GoldTimeSabotage, // Sabotage-fas
-        Final,           // Relic-spawning och sista strid
-        PostMatch        // Resultat och statistik
+        RelicPlacement,    // Placera reliker i rätt platser
+        HandGesture,        // Utför handgester
+        PatternMatching,    // Matcha mönster
+        Sequence,           // Sekvensbaserade pussel
+        Logic,              // Logikpussel
+        Physics,            // Fysikbaserade pussel
+        Combination         // Kombinerade pusseltyper
+    }
+    
+    /// <summary>
+    /// Rumtyper som stöds av systemet
+    /// </summary>
+    public enum RoomType
+    {
+        Entrance,           // Ingångsrum
+        Corridor,           // Korridor
+        PuzzleRoom,         // Pusselrum
+        RelicChamber,       // Relikkammare
+        BossRoom,           // Bossrum
+        Exit                // Utgångsrum
+    }
+    
+    /// <summary>
+    /// Spelnivåer för progression
+    /// </summary>
+    public enum GameLevel
+    {
+        Tutorial,           // Handledning
+        Beginner,           // Nybörjare
+        Intermediate,       // Mellannivå
+        Advanced,           // Avancerad
+        Expert,             // Expert
+        Master              // Mästare
+    }
+    
+    /// <summary>
+    /// VR-enhetstyper som stöds
+    /// </summary>
+    public enum VRDeviceType
+    {
+        None,               // Ingen VR-enhet
+        OculusQuest,        // Oculus Quest
+        OculusRift,         // Oculus Rift
+        HTCVive,            // HTC Vive
+        ValveIndex,         // Valve Index
+        WindowsMR,          // Windows Mixed Reality
+        Other               // Annan VR-enhet
     }
 } 

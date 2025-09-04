@@ -1,497 +1,538 @@
 using UnityEngine;
+using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit;
 using System.Collections.Generic;
 
 namespace Run4theRelic.Core
 {
     /// <summary>
-    /// Handles VR interactions including grabbing, pointing, and physical object manipulation.
-    /// Integrates with XR Interaction Toolkit for seamless VR interaction.
+    /// VR Interaction System för Run4theRelic
+    /// Hanterar VR-interaktioner som grabbing, pointing och fysisk objektmanipulation
     /// </summary>
     public class VRInteractionSystem : MonoBehaviour
     {
-        [Header("Interaction Settings")]
+        [Header("VR Interaction Settings")]
         [SerializeField] private bool enableGrabbing = true;
         [SerializeField] private bool enablePointing = true;
-        [SerializeField] private bool enableRaycasting = true;
-        [SerializeField] private LayerMask interactableLayers = -1;
+        [SerializeField] private bool enableRayInteraction = true;
+        [SerializeField] private float grabDistance = 2.0f;
+        [SerializeField] private float pointDistance = 5.0f;
         
-        [Header("Grabbing Settings")]
-        [SerializeField] private float grabThreshold = 0.8f;
-        [SerializeField] private float releaseThreshold = 0.2f;
-        [SerializeField] private bool enableHapticFeedback = true;
-        [SerializeField] private float grabHapticIntensity = 0.7f;
-        
-        [Header("Pointing Settings")]
-        [SerializeField] private float maxPointDistance = 10f;
-        [SerializeField] private LayerMask pointableLayers = -1;
-        [SerializeField] private bool showPointingLine = true;
-        [SerializeField] private Material pointingLineMaterial;
-        
-        [Header("References")]
+        [Header("VR Components")]
         [SerializeField] private XRDirectInteractor leftDirectInteractor;
         [SerializeField] private XRDirectInteractor rightDirectInteractor;
         [SerializeField] private XRRayInteractor leftRayInteractor;
         [SerializeField] private XRRayInteractor rightRayInteractor;
-        [SerializeField] private LineRenderer leftPointingLine;
-        [SerializeField] private LineRenderer rightPointingLine;
+        [SerializeField] private XRInteractionManager interactionManager;
         
-        // Interaction State
-        private bool _leftHandGrabbing = false;
-        private bool _rightHandGrabbing = false;
-        private GameObject _leftGrabbedObject = null;
-        private GameObject _rightGrabbedObject = null;
-        private Vector3 _leftGrabPoint = Vector3.zero;
-        private Vector3 _rightGrabPoint = Vector3.zero;
+        [Header("Interaction Feedback")]
+        [SerializeField] private bool enableHapticFeedback = true;
+        [SerializeField] private bool enableVisualFeedback = true;
+        [SerializeField] private float hapticIntensity = 0.8f;
+        [SerializeField] private Color highlightColor = Color.yellow;
         
-        // Pointing State
-        private bool _leftHandPointing = false;
-        private bool _rightHandPointing = false;
-        private Vector3 _leftPointTarget = Vector3.zero;
-        private Vector3 _rightPointTarget = Vector3.zero;
-        private GameObject _leftPointedObject = null;
-        private GameObject _rightPointedObject = null;
+        // Private fields
+        private VRManager vrManager;
+        private List<XRGrabInteractable> grabInteractables = new List<XRGrabInteractable>();
+        private List<GameObject> highlightedObjects = new List<GameObject>();
+        private Dictionary<GameObject, Material> originalMaterials = new Dictionary<GameObject, Material>();
         
         // Events
-        public static event System.Action<GameObject, bool> OnLeftHandGrabbingChanged;
-        public static event System.Action<GameObject, bool> OnRightHandGrabbingChanged;
-        public static event System.Action<GameObject, Vector3> OnLeftHandPointingChanged;
-        public static event System.Action<GameObject, Vector3> OnRightHandPointingChanged;
-        
-        // Properties
-        public bool LeftHandGrabbing => _leftHandGrabbing;
-        public bool RightHandGrabbing => _rightHandGrabbing;
-        public GameObject LeftGrabbedObject => _leftGrabbedObject;
-        public GameObject RightGrabbedObject => _rightGrabbedObject;
-        public Vector3 LeftGrabPoint => _leftGrabPoint;
-        public Vector3 RightGrabPoint => _rightGrabPoint;
-        
-        public bool LeftHandPointing => _leftHandPointing;
-        public bool RightHandPointing => _rightHandPointing;
-        public Vector3 LeftPointTarget => _leftPointTarget;
-        public Vector3 RightPointTarget => _rightPointTarget;
-        public GameObject LeftPointedObject => _leftPointedObject;
-        public GameObject RightPointedObject => _rightPointedObject;
+        public static event System.Action<GameObject> OnObjectGrabbed;
+        public static event System.Action<GameObject> OnObjectReleased;
+        public static event System.Action<GameObject> OnObjectPointed;
+        public static event System.Action<Vector3> OnInteractionPoint;
         
         private void Start()
         {
-            // Find interactors if not assigned
-            FindInteractors();
-            
-            // Setup pointing lines
-            SetupPointingLines();
-            
-            // Subscribe to input events
-            VRInputManager.OnLeftGripChanged += OnLeftGripChanged;
-            VRInputManager.OnRightGripChanged += OnRightGripChanged;
-            VRInputManager.OnLeftHandGestureChanged += OnLeftHandGestureChanged;
-            VRInputManager.OnRightHandGestureChanged += OnRightHandGestureChanged;
+            InitializeVRInteraction();
         }
         
         private void Update()
         {
-            if (enablePointing)
-            {
-                UpdatePointing();
-            }
+            UpdateInteractionState();
         }
         
         /// <summary>
-        /// Find and assign VR interactors.
+        /// Initialize VR-interaktionssystemet
+        /// </summary>
+        private void InitializeVRInteraction()
+        {
+            // Find VR Manager
+            vrManager = FindObjectOfType<VRManager>();
+            if (vrManager == null)
+            {
+                Debug.LogWarning("[VRInteractionSystem] No VRManager found!");
+                return;
+            }
+            
+            // Find interaction manager if not assigned
+            if (interactionManager == null)
+            {
+                interactionManager = FindObjectOfType<XRInteractionManager>();
+            }
+            
+            // Find interactors if not assigned
+            FindInteractors();
+            
+            // Setup event listeners
+            SetupEventListeners();
+            
+            // Find all grab interactables in scene
+            FindGrabInteractables();
+            
+            Debug.Log("[VRInteractionSystem] VR Interaction System initialized");
+        }
+        
+        /// <summary>
+        /// Hitta alla interactors
         /// </summary>
         private void FindInteractors()
         {
-            var directInteractors = FindObjectsOfType<XRDirectInteractor>();
-            var rayInteractors = FindObjectsOfType<XRRayInteractor>();
-            
-            foreach (var interactor in directInteractors)
-            {
-                if (interactor.interactionLayers == InteractionLayerMask.GetMask("LeftHand"))
-                {
-                    leftDirectInteractor = interactor;
-                }
-                else if (interactor.interactionLayers == InteractionLayerMask.GetMask("RightHand"))
-                {
-                    rightDirectInteractor = interactor;
-                }
-            }
-            
-            foreach (var interactor in rayInteractors)
-            {
-                if (interactor.interactionLayers == InteractionLayerMask.GetMask("LeftHand"))
-                {
-                    leftRayInteractor = interactor;
-                }
-                else if (interactor.interactionLayers == InteractionLayerMask.GetMask("RightHand"))
-                {
-                    rightRayInteractor = interactor;
-                }
-            }
-            
             if (leftDirectInteractor == null || rightDirectInteractor == null)
             {
-                Debug.LogWarning("VRInteractionSystem: Could not find both direct interactors!");
-            }
-        }
-        
-        /// <summary>
-        /// Setup pointing line renderers.
-        /// </summary>
-        private void SetupPointingLines()
-        {
-            if (showPointingLine)
-            {
-                // Create left pointing line
-                if (leftPointingLine == null)
+                var directInteractors = FindObjectsOfType<XRDirectInteractor>();
+                foreach (var interactor in directInteractors)
                 {
-                    leftPointingLine = CreatePointingLine("LeftPointingLine");
-                }
-                
-                // Create right pointing line
-                if (rightPointingLine == null)
-                {
-                    rightPointingLine = CreatePointingLine("RightPointingLine");
-                }
-            }
-        }
-        
-        /// <summary>
-        /// Create a pointing line renderer.
-        /// </summary>
-        /// <param name="name">Name for the line renderer.</param>
-        /// <returns>Configured LineRenderer component.</returns>
-        private LineRenderer CreatePointingLine(string name)
-        {
-            GameObject lineObj = new GameObject(name);
-            lineObj.transform.SetParent(transform);
-            
-            LineRenderer line = lineObj.AddComponent<LineRenderer>();
-            line.material = pointingLineMaterial != null ? pointingLineMaterial : new Material(Shader.Find("Sprites/Default"));
-            line.startWidth = 0.01f;
-            line.endWidth = 0.005f;
-            line.color = Color.cyan;
-            line.positionCount = 2;
-            line.useWorldSpace = true;
-            line.enabled = false;
-            
-            return line;
-        }
-        
-        /// <summary>
-        /// Handle left grip input changes.
-        /// </summary>
-        /// <param name="isPressed">True if grip is pressed.</param>
-        private void OnLeftGripChanged(bool isPressed)
-        {
-            if (enableGrabbing)
-            {
-                if (isPressed && !_leftHandGrabbing)
-                {
-                    StartLeftHandGrabbing();
-                }
-                else if (!isPressed && _leftHandGrabbing)
-                {
-                    StopLeftHandGrabbing();
-                }
-            }
-        }
-        
-        /// <summary>
-        /// Handle right grip input changes.
-        /// </summary>
-        /// <param name="isPressed">True if grip is pressed.</param>
-        private void OnRightGripChanged(bool isPressed)
-        {
-            if (enableGrabbing)
-            {
-                if (isPressed && !_rightHandGrabbing)
-                {
-                    StartRightHandGrabbing();
-                }
-                else if (!isPressed && _rightHandGrabbing)
-                {
-                    StopRightHandGrabbing();
-                }
-            }
-        }
-        
-        /// <summary>
-        /// Handle left hand gesture changes.
-        /// </summary>
-        /// <param name="isClosed">True if hand is closed.</param>
-        private void OnLeftHandGestureChanged(bool isClosed)
-        {
-            _leftHandPointing = !isClosed;
-            UpdateLeftPointingLine();
-        }
-        
-        /// <summary>
-        /// Handle right hand gesture changes.
-        /// </summary>
-        /// <param name="isClosed">True if hand is closed.</param>
-        private void OnRightHandGestureChanged(bool isClosed)
-        {
-            _rightHandPointing = !isClosed;
-            UpdateRightPointingLine();
-        }
-        
-        /// <summary>
-        /// Start grabbing with left hand.
-        /// </summary>
-        private void StartLeftHandGrabbing()
-        {
-            if (leftDirectInteractor == null) return;
-            
-            // Find closest interactable
-            var interactables = leftDirectInteractor.interactablesSelected;
-            if (interactables.Count > 0)
-            {
-                var interactable = interactables[0];
-                _leftGrabbedObject = interactable.transform.gameObject;
-                _leftGrabPoint = leftDirectInteractor.transform.position;
-                
-                _leftHandGrabbing = true;
-                
-                // Trigger haptic feedback
-                if (enableHapticFeedback)
-                {
-                    var vrManager = FindObjectOfType<VRManager>();
-                    if (vrManager != null)
+                    if (interactor.interactionLayers == InteractionLayerMask.GetMask("LeftHand"))
                     {
-                        var controller = vrManager.GetLeftController();
-                        if (controller != null)
-                        {
-                            vrManager.TriggerHapticFeedback(controller, grabHapticIntensity);
-                        }
+                        leftDirectInteractor = interactor;
+                    }
+                    else if (interactor.interactionLayers == InteractionLayerMask.GetMask("RightHand"))
+                    {
+                        rightDirectInteractor = interactor;
                     }
                 }
-                
-                OnLeftHandGrabbingChanged?.Invoke(_leftGrabbedObject, true);
-                
-                Debug.Log($"Left hand started grabbing: {_leftGrabbedObject.name}");
             }
-        }
-        
-        /// <summary>
-        /// Stop grabbing with left hand.
-        /// </summary>
-        private void StopLeftHandGrabbing()
-        {
-            if (_leftHandGrabbing)
-            {
-                _leftHandGrabbing = false;
-                var grabbedObject = _leftGrabbedObject;
-                _leftGrabbedObject = null;
-                _leftGrabPoint = Vector3.zero;
-                
-                OnLeftHandGrabbingChanged?.Invoke(grabbedObject, false);
-                
-                Debug.Log($"Left hand stopped grabbing: {grabbedObject?.name ?? "unknown"}");
-            }
-        }
-        
-        /// <summary>
-        /// Start grabbing with right hand.
-        /// </summary>
-        private void StartRightHandGrabbing()
-        {
-            if (rightDirectInteractor == null) return;
             
-            // Find closest interactable
-            var interactables = rightDirectInteractor.interactablesSelected;
-            if (interactables.Count > 0)
+            if (leftRayInteractor == null || rightRayInteractor == null)
             {
-                var interactable = interactables[0];
-                _rightGrabbedObject = interactable.transform.gameObject;
-                _rightGrabPoint = rightDirectInteractor.transform.position;
-                
-                _rightHandGrabbing = true;
-                
-                // Trigger haptic feedback
-                if (enableHapticFeedback)
+                var rayInteractors = FindObjectsOfType<XRRayInteractor>();
+                foreach (var interactor in rayInteractors)
                 {
-                    var vrManager = FindObjectOfType<VRManager>();
-                    if (vrManager != null)
+                    if (interactor.interactionLayers == InteractionLayerMask.GetMask("LeftHand"))
                     {
-                        var controller = vrManager.GetRightController();
-                        if (controller != null)
-                        {
-                            vrManager.TriggerHapticFeedback(controller, grabHapticIntensity);
-                        }
+                        leftRayInteractor = interactor;
+                    }
+                    else if (interactor.interactionLayers == InteractionLayerMask.GetMask("RightHand"))
+                    {
+                        rightRayInteractor = interactor;
                     }
                 }
+            }
+        }
+        
+        /// <summary>
+        /// Setup event listeners
+        /// </summary>
+        private void SetupEventListeners()
+        {
+            // Listen for grab events
+            if (leftDirectInteractor != null)
+            {
+                leftDirectInteractor.selectEntered.AddListener(OnLeftHandGrabbed);
+                leftDirectInteractor.selectExited.AddListener(OnLeftHandReleased);
+            }
+            
+            if (rightDirectInteractor != null)
+            {
+                rightDirectInteractor.selectEntered.AddListener(OnRightHandGrabbed);
+                rightDirectInteractor.selectExited.AddListener(OnRightHandReleased);
+            }
+            
+            // Listen for ray interaction events
+            if (leftRayInteractor != null)
+            {
+                leftRayInteractor.hoverEntered.AddListener(OnLeftHandPointed);
+            }
+            
+            if (rightRayInteractor != null)
+            {
+                rightRayInteractor.hoverEntered.AddListener(OnRightHandPointed);
+            }
+        }
+        
+        /// <summary>
+        /// Hitta alla grab interactables
+        /// </summary>
+        private void FindGrabInteractables()
+        {
+            grabInteractables.Clear();
+            var interactables = FindObjectsOfType<XRGrabInteractable>();
+            grabInteractables.AddRange(interactables);
+            
+            Debug.Log($"[VRInteractionSystem] Found {grabInteractables.Count} grab interactables");
+        }
+        
+        /// <summary>
+        /// Update interaction state
+        /// </summary>
+        private void UpdateInteractionState()
+        {
+            // Update interaction feedback
+            UpdateInteractionFeedback();
+            
+            // Update interaction points
+            UpdateInteractionPoints();
+        }
+        
+        /// <summary>
+        /// Update interaction feedback
+        /// </summary>
+        private void UpdateInteractionFeedback()
+        {
+            if (!enableVisualFeedback) return;
+            
+            // Update highlighting for objects being pointed at
+            UpdateObjectHighlighting();
+        }
+        
+        /// <summary>
+        /// Update object highlighting
+        /// </summary>
+        private void UpdateObjectHighlighting()
+        {
+            // Clear old highlights
+            ClearHighlights();
+            
+            // Add new highlights for objects being pointed at
+            if (leftRayInteractor != null && leftRayInteractor.TryGetCurrent3DRaycastHit(out var leftHit))
+            {
+                HighlightObject(leftHit.collider.gameObject);
+            }
+            
+            if (rightRayInteractor != null && rightRayInteractor.TryGetCurrent3DRaycastHit(out var rightHit))
+            {
+                HighlightObject(rightHit.collider.gameObject);
+            }
+        }
+        
+        /// <summary>
+        /// Highlight object
+        /// </summary>
+        private void HighlightObject(GameObject obj)
+        {
+            if (obj == null || highlightedObjects.Contains(obj)) return;
+            
+            var renderer = obj.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                // Store original material
+                if (!originalMaterials.ContainsKey(obj))
+                {
+                    originalMaterials[obj] = renderer.material;
+                }
                 
-                OnRightHandGrabbingChanged?.Invoke(_rightGrabbedObject, true);
+                // Create highlight material
+                var highlightMaterial = new Material(renderer.material);
+                highlightMaterial.color = highlightColor;
+                renderer.material = highlightMaterial;
                 
-                Debug.Log($"Right hand started grabbing: {_rightGrabbedObject.name}");
+                highlightedObjects.Add(obj);
             }
         }
         
         /// <summary>
-        /// Stop grabbing with right hand.
+        /// Clear all highlights
         /// </summary>
-        private void StopRightHandGrabbing()
+        private void ClearHighlights()
         {
-            if (_rightHandGrabbing)
+            foreach (var obj in highlightedObjects)
             {
-                _rightHandGrabbing = false;
-                var grabbedObject = _rightGrabbedObject;
-                _rightGrabbedObject = null;
-                _rightGrabPoint = Vector3.zero;
+                if (obj != null && originalMaterials.ContainsKey(obj))
+                {
+                    var renderer = obj.GetComponent<Renderer>();
+                    if (renderer != null)
+                    {
+                        renderer.material = originalMaterials[obj];
+                    }
+                }
+            }
+            
+            highlightedObjects.Clear();
+        }
+        
+        /// <summary>
+        /// Update interaction points
+        /// </summary>
+        private void UpdateInteractionPoints()
+        {
+            if (!enableRayInteraction) return;
+            
+            // Update left hand interaction point
+            if (leftRayInteractor != null && leftRayInteractor.TryGetCurrent3DRaycastHit(out var leftHit))
+            {
+                OnInteractionPoint?.Invoke(leftHit.point);
+            }
+            
+            // Update right hand interaction point
+            if (rightRayInteractor != null && rightRayInteractor.TryGetCurrent3DRaycastHit(out var rightHit))
+            {
+                OnInteractionPoint?.Invoke(rightHit.point);
+            }
+        }
+        
+        /// <summary>
+        /// Left hand grabbed object
+        /// </summary>
+        private void OnLeftHandGrabbed(SelectEnterEventArgs args)
+        {
+            var interactable = args.interactableObject as XRGrabInteractable;
+            if (interactable != null)
+            {
+                OnObjectGrabbed?.Invoke(interactable.gameObject);
                 
-                OnRightHandGrabbingChanged?.Invoke(grabbedObject, false);
+                if (enableHapticFeedback)
+                {
+                    SendHapticFeedback(XRNode.LeftHand);
+                }
                 
-                Debug.Log($"Right hand stopped grabbing: {grabbedObject?.name ?? "unknown"}");
+                Debug.Log($"[VRInteractionSystem] Left hand grabbed: {interactable.name}");
             }
         }
         
         /// <summary>
-        /// Update pointing system.
+        /// Left hand released object
         /// </summary>
-        private void UpdatePointing()
+        private void OnLeftHandReleased(SelectExitEventArgs args)
         {
-            if (_leftHandPointing)
+            var interactable = args.interactableObject as XRGrabInteractable;
+            if (interactable != null)
             {
-                UpdateLeftPointing();
-            }
-            
-            if (_rightHandPointing)
-            {
-                UpdateRightPointing();
-            }
-        }
-        
-        /// <summary>
-        /// Update left hand pointing.
-        /// </summary>
-        private void UpdateLeftPointing()
-        {
-            if (leftRayInteractor == null) return;
-            
-            // Get pointing target
-            if (leftRayInteractor.TryGetCurrent3DRaycastHit(out var hit))
-            {
-                _leftPointTarget = hit.point;
-                _leftPointedObject = hit.collider.gameObject;
+                OnObjectReleased?.Invoke(interactable.gameObject);
                 
-                OnLeftHandPointingChanged?.Invoke(_leftPointedObject, _leftPointTarget);
-            }
-            else
-            {
-                _leftPointTarget = leftRayInteractor.transform.position + leftRayInteractor.transform.forward * maxPointDistance;
-                _leftPointedObject = null;
-            }
-            
-            UpdateLeftPointingLine();
-        }
-        
-        /// <summary>
-        /// Update right hand pointing.
-        /// </summary>
-        private void UpdateRightPointing()
-        {
-            if (rightRayInteractor == null) return;
-            
-            // Get pointing target
-            if (rightRayInteractor.TryGetCurrent3DRaycastHit(out var hit))
-            {
-                _rightPointTarget = hit.point;
-                _rightPointedObject = hit.collider.gameObject;
+                if (enableHapticFeedback)
+                {
+                    SendHapticFeedback(XRNode.LeftHand, 0.5f, 0.1f);
+                }
                 
-                OnRightHandPointingChanged?.Invoke(_rightPointedObject, _rightPointTarget);
+                Debug.Log($"[VRInteractionSystem] Left hand released: {interactable.name}");
             }
-            else
+        }
+        
+        /// <summary>
+        /// Right hand grabbed object
+        /// </summary>
+        private void OnRightHandGrabbed(SelectEnterEventArgs args)
+        {
+            var interactable = args.interactableObject as XRGrabInteractable;
+            if (interactable != null)
             {
-                _rightPointTarget = rightRayInteractor.transform.position + rightRayInteractor.transform.forward * maxPointDistance;
-                _rightPointedObject = null;
+                OnObjectGrabbed?.Invoke(interactable.gameObject);
+                
+                if (enableHapticFeedback)
+                {
+                    SendHapticFeedback(XRNode.RightHand);
+                }
+                
+                Debug.Log($"[VRInteractionSystem] Right hand grabbed: {interactable.name}");
+            }
+        }
+        
+        /// <summary>
+        /// Right hand released object
+        /// </summary>
+        private void OnRightHandReleased(SelectExitEventArgs args)
+        {
+            var interactable = args.interactableObject as XRGrabInteractable;
+            if (interactable != null)
+            {
+                OnObjectReleased?.Invoke(interactable.gameObject);
+                
+                if (enableHapticFeedback)
+                {
+                    SendHapticFeedback(XRNode.RightHand, 0.5f, 0.1f);
+                }
+                
+                Debug.Log($"[VRInteractionSystem] Right hand released: {interactable.name}");
+            }
+        }
+        
+        /// <summary>
+        /// Left hand pointed at object
+        /// </summary>
+        private void OnLeftHandPointed(HoverEnterEventArgs args)
+        {
+            var interactable = args.interactableObject as XRGrabInteractable;
+            if (interactable != null)
+            {
+                OnObjectPointed?.Invoke(interactable.gameObject);
+                
+                if (enableHapticFeedback)
+                {
+                    SendHapticFeedback(XRNode.LeftHand, 0.3f, 0.05f);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Right hand pointed at object
+        /// </summary>
+        private void OnRightHandPointed(HoverEnterEventArgs args)
+        {
+            var interactable = args.interactableObject as XRGrabInteractable;
+            if (interactable != null)
+            {
+                OnObjectPointed?.Invoke(interactable.gameObject);
+                
+                if (enableHapticFeedback)
+                {
+                    SendHapticFeedback(XRNode.RightHand, 0.3f, 0.05f);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Send haptic feedback
+        /// </summary>
+        private void SendHapticFeedback(XRNode controllerNode, float intensity = 1.0f, float duration = 0.1f)
+        {
+            if (!enableHapticFeedback || vrManager == null) return;
+            
+            vrManager.SendHapticFeedback(controllerNode, intensity * hapticIntensity, duration);
+        }
+        
+        /// <summary>
+        /// Add grab interactable
+        /// </summary>
+        public void AddGrabInteractable(XRGrabInteractable interactable)
+        {
+            if (interactable != null && !grabInteractables.Contains(interactable))
+            {
+                grabInteractables.Add(interactable);
+                Debug.Log($"[VRInteractionSystem] Added grab interactable: {interactable.name}");
+            }
+        }
+        
+        /// <summary>
+        /// Remove grab interactable
+        /// </summary>
+        public void RemoveGrabInteractable(XRGrabInteractable interactable)
+        {
+            if (interactable != null && grabInteractables.Contains(interactable))
+            {
+                grabInteractables.Remove(interactable);
+                Debug.Log($"[VRInteractionSystem] Removed grab interactable: {interactable.name}");
+            }
+        }
+        
+        /// <summary>
+        /// Get all grab interactables
+        /// </summary>
+        public List<XRGrabInteractable> GetGrabInteractables()
+        {
+            return new List<XRGrabInteractable>(grabInteractables);
+        }
+        
+        /// <summary>
+        /// Check if object is being grabbed
+        /// </summary>
+        public bool IsObjectGrabbed(GameObject obj)
+        {
+            if (obj == null) return false;
+            
+            var interactable = obj.GetComponent<XRGrabInteractable>();
+            if (interactable != null)
+            {
+                return interactable.isSelected;
             }
             
-            UpdateRightPointingLine();
+            return false;
         }
         
         /// <summary>
-        /// Update left pointing line.
+        /// Get object being grabbed by hand
         /// </summary>
-        private void UpdateLeftPointingLine()
+        public GameObject GetGrabbedObject(XRNode handNode)
         {
-            if (leftPointingLine == null || !showPointingLine) return;
+            XRDirectInteractor interactor = null;
             
-            if (_leftHandPointing)
+            if (handNode == XRNode.LeftHand)
             {
-                leftPointingLine.enabled = true;
-                leftPointingLine.SetPosition(0, leftRayInteractor?.transform.position ?? Vector3.zero);
-                leftPointingLine.SetPosition(1, _leftPointTarget);
+                interactor = leftDirectInteractor;
             }
-            else
+            else if (handNode == XRNode.RightHand)
             {
-                leftPointingLine.enabled = false;
+                interactor = rightDirectInteractor;
             }
-        }
-        
-        /// <summary>
-        /// Update right pointing line.
-        /// </summary>
-        private void UpdateRightPointingLine()
-        {
-            if (rightPointingLine == null || !showPointingLine) return;
             
-            if (_rightHandPointing)
+            if (interactor != null && interactor.hasSelection)
             {
-                rightPointingLine.enabled = true;
-                rightPointingLine.SetPosition(0, rightRayInteractor?.transform.position ?? Vector3.zero);
-                rightPointingLine.SetPosition(1, _rightPointTarget);
+                var interactable = interactor.interactablesSelected[0] as XRGrabInteractable;
+                return interactable?.gameObject;
             }
-            else
-            {
-                rightPointingLine.enabled = false;
-            }
+            
+            return null;
         }
         
         /// <summary>
-        /// Check if any hand is grabbing.
+        /// Toggle interaction features
         /// </summary>
-        /// <returns>True if any hand is grabbing.</returns>
-        public bool IsAnyHandGrabbing()
+        public void ToggleInteractionFeatures(bool enable)
         {
-            return _leftHandGrabbing || _rightHandGrabbing;
+            enableGrabbing = enable;
+            enablePointing = enable;
+            enableRayInteraction = enable;
+            enableHapticFeedback = enable;
+            enableVisualFeedback = enable;
+            
+            Debug.Log($"[VRInteractionSystem] Interaction features {(enable ? "enabled" : "disabled")}");
         }
         
         /// <summary>
-        /// Check if any hand is pointing.
+        /// Get left direct interactor
         /// </summary>
-        /// <returns>True if any hand is pointing.</returns>
-        public bool IsAnyHandPointing()
+        public XRDirectInteractor GetLeftDirectInteractor()
         {
-            return _leftHandPointing || _rightHandPointing;
+            return leftDirectInteractor;
         }
         
         /// <summary>
-        /// Get grabbed object for a specific hand.
+        /// Get right direct interactor
         /// </summary>
-        /// <param name="isLeft">True for left hand, false for right.</param>
-        /// <returns>Grabbed GameObject or null.</returns>
-        public GameObject GetGrabbedObject(bool isLeft)
+        public XRDirectInteractor GetRightDirectInteractor()
         {
-            return isLeft ? _leftGrabbedObject : _rightGrabbedObject;
+            return rightDirectInteractor;
         }
         
         /// <summary>
-        /// Get pointed object for a specific hand.
+        /// Get left ray interactor
         /// </summary>
-        /// <param name="isLeft">True for left hand, false for right.</param>
-        /// <returns>Pointed GameObject or null.</returns>
-        public GameObject GetPointedObject(bool isLeft)
+        public XRRayInteractor GetLeftRayInteractor()
         {
-            return isLeft ? _leftPointedObject : _rightPointedObject;
+            return leftRayInteractor;
+        }
+        
+        /// <summary>
+        /// Get right ray interactor
+        /// </summary>
+        public XRRayInteractor GetRightRayInteractor()
+        {
+            return rightRayInteractor;
+        }
+        
+        /// <summary>
+        /// Get interaction manager
+        /// </summary>
+        public XRInteractionManager GetInteractionManager()
+        {
+            return interactionManager;
         }
         
         private void OnDestroy()
         {
-            // Unsubscribe from events
-            VRInputManager.OnLeftGripChanged -= OnLeftGripChanged;
-            VRInputManager.OnRightGripChanged -= OnRightGripChanged;
-            VRInputManager.OnLeftHandGestureChanged -= OnLeftHandGestureChanged;
-            VRInputManager.OnRightHandGestureChanged -= OnRightHandGestureChanged;
+            // Clean up highlights
+            ClearHighlights();
+            
+            // Clean up materials
+            foreach (var material in originalMaterials.Values)
+            {
+                if (material != null)
+                {
+                    DestroyImmediate(material);
+                }
+            }
+            originalMaterials.Clear();
         }
     }
 }

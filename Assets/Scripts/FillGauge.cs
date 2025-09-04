@@ -10,8 +10,10 @@ public class FillGauge : MonoBehaviour
     public bool clampInput = true;
 
     [Header("Axis Mapping")]
-    public enum ScaleAxis { X, Y, Z }
+    [Tooltip("Axis to scale along")]
     public ScaleAxis scaleAxis = ScaleAxis.Y;
+    
+    public enum ScaleAxis { X, Y, Z }
 
     [Tooltip("Minimum local scale along axis when fill = 0")]
     public float minScale = 0f;

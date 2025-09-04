@@ -5,121 +5,66 @@ using UnityEngine.XR.Interaction.Toolkit;
 namespace Run4theRelic.Core
 {
     /// <summary>
-    /// Manages VR camera rig for first person perspective.
-    /// Handles head tracking, comfort settings, and camera positioning.
+    /// VR Camera Rig för first-person perspektiv
+    /// Hanterar head tracking, comfort settings och kamerapositionering
     /// </summary>
     public class VRCameraRig : MonoBehaviour
     {
-        [Header("Camera Settings")]
-        [SerializeField] private Camera vrCamera;
-        [SerializeField] private Transform cameraOffset;
-        [SerializeField] private float cameraHeight = 1.6f;
+        [Header("VR Camera Settings")]
+        [SerializeField] private float cameraHeight = 1.7f;
+        [SerializeField] private float cameraOffset = 0.1f;
         [SerializeField] private bool autoAdjustHeight = true;
         
-        [Header("Comfort Settings")]
+        [Header("VR Comfort Settings")]
         [SerializeField] private bool enableBlink = true;
         [SerializeField] private bool enableVignette = true;
+        [SerializeField] private bool enableSnapTurn = true;
+        [SerializeField] private bool enableContinuousTurn = false;
+        [SerializeField] private bool enableTeleportation = true;
+        
+        [Header("Comfort Values")]
         [SerializeField] private float blinkDuration = 0.3f;
         [SerializeField] private float vignetteIntensity = 0.3f;
-        [SerializeField] private float maxTurnAngle = 45f;
-        [SerializeField] private bool enableSnapTurn = true;
         [SerializeField] private float snapTurnAngle = 45f;
-        
-        [Header("Movement Settings")]
-        [SerializeField] private bool enableContinuousTurn = true;
         [SerializeField] private float continuousTurnSpeed = 60f;
-        [SerializeField] private bool enableTeleportation = true;
         [SerializeField] private float teleportationRange = 10f;
         
         [Header("References")]
+        [SerializeField] private Camera vrCamera;
         [SerializeField] private XROrigin xrOrigin;
-        [SerializeField] private Transform playerBody;
-        [SerializeField] private Transform leftHandAnchor;
-        [SerializeField] private Transform rightHandAnchor;
+        [SerializeField] private Transform cameraOffsetTransform;
         
-        // Camera State
-        private bool _isInitialized = false;
-        private Vector3 _initialCameraPosition;
-        private Quaternion _initialCameraRotation;
-        private float _currentTurnAngle = 0f;
-        
-        // Comfort Features
-        private bool _isBlinking = false;
-        private float _blinkTimer = 0f;
-        private Material _vignetteMaterial;
+        // Private fields
+        private bool isVRMode = false;
+        private Vector3 initialCameraPosition;
+        private Quaternion initialCameraRotation;
+        private float currentBlinkTime = 0f;
+        private bool isBlinking = false;
         
         // Events
-        public static event System.Action<Vector3> OnCameraPositionChanged;
-        public static event System.Action<Quaternion> OnCameraRotationChanged;
-        public static event System.Action<bool> OnBlinkStateChanged;
-        
-        // Properties
-        public Camera VRCamera => vrCamera;
-        public Transform CameraOffset => cameraOffset;
-        public bool IsInitialized => _isInitialized;
-        public bool IsBlinking => _isBlinking;
-        
-        private void Awake()
-        {
-            // Ensure singleton pattern
-            if (FindObjectsOfType<VRCameraRig>().Length > 1)
-            {
-                Destroy(gameObject);
-                return;
-            }
-            
-            DontDestroyOnLoad(gameObject);
-        }
+        public static event System.Action<bool> OnVRModeChanged;
+        public static event System.Action OnCameraPositionChanged;
         
         private void Start()
         {
-            InitializeCameraRig();
+            InitializeVRCamera();
         }
         
         private void Update()
         {
-            if (!_isInitialized) return;
-            
-            // Update camera tracking
-            UpdateCameraTracking();
-            
-            // Update comfort features
-            UpdateComfortFeatures();
-            
-            // Update movement
-            UpdateMovement();
+            if (isVRMode)
+            {
+                UpdateVRComfort();
+                UpdateCameraPosition();
+            }
         }
         
         /// <summary>
-        /// Initialize the VR camera rig.
+        /// Initialize VR-kameran
         /// </summary>
-        private void InitializeCameraRig()
+        private void InitializeVRCamera()
         {
-            Debug.Log("VRCameraRig: Initializing camera rig...");
-            
-            // Find components if not assigned
-            FindComponents();
-            
-            // Setup camera
-            SetupCamera();
-            
-            // Setup comfort features
-            SetupComfortFeatures();
-            
-            // Setup movement
-            SetupMovement();
-            
-            _isInitialized = true;
-            
-            Debug.Log("VRCameraRig: Camera rig initialized successfully");
-        }
-        
-        /// <summary>
-        /// Find and assign required components.
-        /// </summary>
-        private void FindComponents()
-        {
-            // Find VR camera
+            // Find VR camera if not assigned
             if (vrCamera == null)
             {
                 vrCamera = Camera.main;
@@ -129,329 +74,275 @@ namespace Run4theRelic.Core
                 }
             }
             
-            // Find XR Origin
+            // Find XR Origin if not assigned
             if (xrOrigin == null)
             {
                 xrOrigin = FindObjectOfType<XROrigin>();
             }
             
-            // Find camera offset
-            if (cameraOffset == null)
+            // Find camera offset transform if not assigned
+            if (cameraOffsetTransform == null)
             {
-                cameraOffset = transform.Find("CameraOffset");
-                if (cameraOffset == null)
+                cameraOffsetTransform = transform.Find("CameraOffset");
+                if (cameraOffsetTransform == null)
                 {
-                    cameraOffset = new GameObject("CameraOffset").transform;
-                    cameraOffset.SetParent(transform);
-                    cameraOffset.localPosition = Vector3.zero;
+                    // Create camera offset if it doesn't exist
+                    GameObject offsetGO = new GameObject("CameraOffset");
+                    offsetGO.transform.SetParent(transform);
+                    offsetGO.transform.localPosition = Vector3.zero;
+                    cameraOffsetTransform = offsetGO.transform;
                 }
             }
             
-            // Find player body
-            if (playerBody == null)
+            // Check if VR is active
+            CheckVRMode();
+            
+            // Setup initial camera position
+            if (vrCamera != null)
             {
-                playerBody = transform.Find("PlayerBody");
-                if (playerBody == null)
-                {
-                    playerBody = new GameObject("PlayerBody").transform;
-                    playerBody.SetParent(transform);
-                    playerBody.localPosition = Vector3.zero;
-                }
+                initialCameraPosition = vrCamera.transform.localPosition;
+                initialCameraRotation = vrCamera.transform.localRotation;
             }
             
-            // Find hand anchors
-            if (leftHandAnchor == null)
-            {
-                leftHandAnchor = transform.Find("LeftHandAnchor");
-                if (leftHandAnchor == null)
-                {
-                    leftHandAnchor = new GameObject("LeftHandAnchor").transform;
-                    leftHandAnchor.SetParent(transform);
-                    leftHandAnchor.localPosition = new Vector3(-0.3f, 0.5f, 0.5f);
-                }
-            }
+            Debug.Log("[VRCameraRig] VR Camera initialized");
+        }
+        
+        /// <summary>
+        /// Kontrollera om VR-läget är aktivt
+        /// </summary>
+        private void CheckVRMode()
+        {
+            bool wasVRMode = isVRMode;
+            isVRMode = XRSettings.isDeviceActive && XRSettings.enabled;
             
-            if (rightHandAnchor == null)
+            if (wasVRMode != isVRMode)
             {
-                rightHandAnchor = transform.Find("RightHandAnchor");
-                if (rightHandAnchor == null)
+                OnVRModeChanged?.Invoke(isVRMode);
+                
+                if (isVRMode)
                 {
-                    rightHandAnchor = new GameObject("RightHandAnchor").transform;
-                    rightHandAnchor.SetParent(transform);
-                    rightHandAnchor.localPosition = new Vector3(0.3f, 0.5f, 0.5f);
+                    Debug.Log("[VRCameraRig] VR mode activated");
+                    SetupVRMode();
+                }
+                else
+                {
+                    Debug.Log("[VRCameraRig] VR mode deactivated");
+                    SetupDesktopMode();
                 }
             }
         }
         
         /// <summary>
-        /// Setup VR camera.
+        /// Setup VR-läge
         /// </summary>
-        private void SetupCamera()
+        private void SetupVRMode()
         {
-            if (vrCamera == null) return;
+            if (vrCamera != null)
+            {
+                // Set camera to camera offset
+                vrCamera.transform.SetParent(cameraOffsetTransform);
+                vrCamera.transform.localPosition = Vector3.zero;
+                vrCamera.transform.localRotation = Quaternion.identity;
+                
+                // Adjust camera height
+                if (autoAdjustHeight)
+                {
+                    AdjustCameraHeight();
+                }
+            }
             
-            // Store initial camera state
-            _initialCameraPosition = vrCamera.transform.position;
-            _initialCameraRotation = vrCamera.transform.rotation;
+            // Setup XR Origin
+            if (xrOrigin != null)
+            {
+                xrOrigin.CameraFloorOffsetObject = cameraOffsetTransform.gameObject;
+            }
+        }
+        
+        /// <summary>
+        /// Setup desktop-läge
+        /// </summary>
+        private void SetupDesktopMode()
+        {
+            if (vrCamera != null)
+            {
+                // Reset camera to original position
+                vrCamera.transform.SetParent(null);
+                vrCamera.transform.localPosition = initialCameraPosition;
+                vrCamera.transform.localRotation = initialCameraRotation;
+            }
+        }
+        
+        /// <summary>
+        /// Justera kamerans höjd baserat på spelarens höjd
+        /// </summary>
+        private void AdjustCameraHeight()
+        {
+            if (cameraOffsetTransform != null)
+            {
+                Vector3 position = cameraOffsetTransform.localPosition;
+                position.y = cameraHeight;
+                cameraOffsetTransform.localPosition = position;
+                
+                Debug.Log($"[VRCameraRig] Camera height adjusted to {cameraHeight}");
+            }
+        }
+        
+        /// <summary>
+        /// Update VR comfort features
+        /// </summary>
+        private void UpdateVRComfort()
+        {
+            if (enableBlink)
+            {
+                UpdateBlink();
+            }
             
-            // Setup camera for VR
-            vrCamera.nearClipPlane = 0.01f;
-            vrCamera.farClipPlane = 1000f;
-            
-            // Position camera at head height
-            if (autoAdjustHeight)
+            if (enableVignette)
+            {
+                UpdateVignette();
+            }
+        }
+        
+        /// <summary>
+        /// Update blink effect
+        /// </summary>
+        private void UpdateBlink()
+        {
+            if (isBlinking)
+            {
+                currentBlinkTime += Time.deltaTime;
+                
+                if (currentBlinkTime >= blinkDuration)
+                {
+                    isBlinking = false;
+                    currentBlinkTime = 0f;
+                    // End blink effect
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Update vignette effect
+        /// </summary>
+        private void UpdateVignette()
+        {
+            // Vignette effect would be implemented here
+            // This could involve post-processing effects or UI overlays
+        }
+        
+        /// <summary>
+        /// Update camera position
+        /// </summary>
+        private void UpdateCameraPosition()
+        {
+            if (vrCamera != null && cameraOffsetTransform != null)
+            {
+                // Apply camera offset
+                Vector3 targetPosition = cameraOffsetTransform.position;
+                targetPosition.y += cameraOffset;
+                
+                if (vrCamera.transform.position != targetPosition)
+                {
+                    vrCamera.transform.position = targetPosition;
+                    OnCameraPositionChanged?.Invoke();
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Trigger blink effect
+        /// </summary>
+        public void TriggerBlink()
+        {
+            if (enableBlink && !isBlinking)
+            {
+                isBlinking = true;
+                currentBlinkTime = 0f;
+                // Start blink effect
+                Debug.Log("[VRCameraRig] Blink triggered");
+            }
+        }
+        
+        /// <summary>
+        /// Set camera height manually
+        /// </summary>
+        public void SetCameraHeight(float height)
+        {
+            cameraHeight = height;
+            if (isVRMode && autoAdjustHeight)
             {
                 AdjustCameraHeight();
             }
-            
-            // Parent camera to offset
-            if (cameraOffset != null)
-            {
-                vrCamera.transform.SetParent(cameraOffset);
-                vrCamera.transform.localPosition = Vector3.zero;
-                vrCamera.transform.localRotation = Quaternion.identity;
-            }
-            
-            Debug.Log($"VRCameraRig: Camera setup complete. Position: {vrCamera.transform.position}");
         }
         
         /// <summary>
-        /// Setup comfort features.
+        /// Toggle VR comfort features
         /// </summary>
-        private void SetupComfortFeatures()
-        {
-            // Create vignette material if needed
-            if (enableVignette && _vignetteMaterial == null)
-            {
-                _vignetteMaterial = new Material(Shader.Find("Standard"));
-                _vignetteMaterial.color = new Color(0, 0, 0, vignetteIntensity);
-            }
-        }
-        
-        /// <summary>
-        /// Setup movement system.
-        /// </summary>
-        private void SetupMovement()
-        {
-            // This would integrate with XR Interaction Toolkit movement providers
-            // For now, we'll handle basic camera movement
-        }
-        
-        /// <summary>
-        /// Update camera tracking.
-        /// </summary>
-        private void UpdateCameraTracking()
-        {
-            if (vrCamera == null) return;
-            
-            // Update camera position and rotation events
-            OnCameraPositionChanged?.Invoke(vrCamera.transform.position);
-            OnCameraRotationChanged?.Invoke(vrCamera.transform.rotation);
-            
-            // Update player body position to follow camera
-            if (playerBody != null)
-            {
-                Vector3 cameraPos = vrCamera.transform.position;
-                playerBody.position = new Vector3(cameraPos.x, transform.position.y, cameraPos.z);
-            }
-        }
-        
-        /// <summary>
-        /// Update comfort features.
-        /// </summary>
-        private void UpdateComfortFeatures()
-        {
-            // Update blink state
-            if (_isBlinking)
-            {
-                _blinkTimer -= Time.deltaTime;
-                if (_blinkTimer <= 0f)
-                {
-                    EndBlink();
-                }
-            }
-            
-            // Update vignette
-            if (enableVignette && _vignetteMaterial != null)
-            {
-                // Apply vignette effect
-                float intensity = _isBlinking ? vignetteIntensity * (1f - _blinkTimer / blinkDuration) : vignetteIntensity;
-                _vignetteMaterial.color = new Color(0, 0, 0, intensity);
-            }
-        }
-        
-        /// <summary>
-        /// Update movement system.
-        /// </summary>
-        private void UpdateMovement()
-        {
-            // Handle continuous turning
-            if (enableContinuousTurn)
-            {
-                HandleContinuousTurn();
-            }
-            
-            // Handle snap turning
-            if (enableSnapTurn)
-            {
-                HandleSnapTurn();
-            }
-        }
-        
-        /// <summary>
-        /// Handle continuous turning input.
-        /// </summary>
-        private void HandleContinuousTurn()
-        {
-            // This would integrate with XR input system
-            // For now, we'll handle basic thumbstick input
-        }
-        
-        /// <summary>
-        /// Handle snap turning input.
-        /// </summary>
-        private void HandleSnapTurn()
-        {
-            // This would integrate with XR input system
-            // For now, we'll handle basic button input
-        }
-        
-        /// <summary>
-        /// Adjust camera height based on player height.
-        /// </summary>
-        public void AdjustCameraHeight()
-        {
-            if (vrCamera == null || cameraOffset == null) return;
-            
-            // Get player height from VR system
-            float playerHeight = GetPlayerHeight();
-            
-            // Adjust camera offset height
-            Vector3 offsetPos = cameraOffset.localPosition;
-            offsetPos.y = playerHeight;
-            cameraOffset.localPosition = offsetPos;
-            
-            Debug.Log($"VRCameraRig: Adjusted camera height to {playerHeight}m");
-        }
-        
-        /// <summary>
-        /// Get current player height from VR system.
-        /// </summary>
-        /// <returns>Player height in meters.</returns>
-        private float GetPlayerHeight()
-        {
-            // This would get actual player height from VR system
-            // For now, return default height
-            return cameraHeight;
-        }
-        
-        /// <summary>
-        /// Start blink effect.
-        /// </summary>
-        /// <param name="duration">Blink duration in seconds.</param>
-        public void StartBlink(float duration = -1f)
-        {
-            if (!enableBlink) return;
-            
-            float blinkDurationToUse = duration >= 0f ? duration : this.blinkDuration;
-            
-            _isBlinking = true;
-            _blinkTimer = blinkDurationToUse;
-            
-            OnBlinkStateChanged?.Invoke(true);
-            
-            Debug.Log($"VRCameraRig: Started blink for {blinkDurationToUse}s");
-        }
-        
-        /// <summary>
-        /// End blink effect.
-        /// </summary>
-        private void EndBlink()
-        {
-            _isBlinking = false;
-            _blinkTimer = 0f;
-            
-            OnBlinkStateChanged?.Invoke(false);
-        }
-        
-        /// <summary>
-        /// Teleport camera to new position.
-        /// </summary>
-        /// <param name="targetPosition">Target position.</param>
-        /// <param name="useBlink">Whether to use blink effect during teleport.</param>
-        public void TeleportTo(Vector3 targetPosition, bool useBlink = true)
-        {
-            if (!enableTeleportation) return;
-            
-            // Check teleportation range
-            float distance = Vector3.Distance(transform.position, targetPosition);
-            if (distance > teleportationRange)
-            {
-                Debug.LogWarning($"VRCameraRig: Teleportation distance {distance}m exceeds range {teleportationRange}m");
-                return;
-            }
-            
-            // Start blink if enabled
-            if (useBlink && enableBlink)
-            {
-                StartBlink();
-            }
-            
-            // Move camera rig
-            transform.position = targetPosition;
-            
-            Debug.Log($"VRCameraRig: Teleported to {targetPosition}");
-        }
-        
-        /// <summary>
-        /// Rotate camera rig by angle.
-        /// </summary>
-        /// <param name="angle">Rotation angle in degrees.</param>
-        public void RotateBy(float angle)
-        {
-            if (Mathf.Abs(angle) > maxTurnAngle)
-            {
-                angle = Mathf.Sign(angle) * maxTurnAngle;
-            }
-            
-            transform.Rotate(0, angle, 0);
-            _currentTurnAngle += angle;
-            
-            Debug.Log($"VRCameraRig: Rotated by {angle}° (total: {_currentTurnAngle}°)");
-        }
-        
-        /// <summary>
-        /// Reset camera to initial position and rotation.
-        /// </summary>
-        public void ResetCamera()
-        {
-            if (vrCamera == null) return;
-            
-            vrCamera.transform.position = _initialCameraPosition;
-            vrCamera.transform.rotation = _initialCameraRotation;
-            _currentTurnAngle = 0f;
-            
-            Debug.Log("VRCameraRig: Camera reset to initial state");
-        }
-        
-        /// <summary>
-        /// Toggle comfort features.
-        /// </summary>
-        /// <param name="enable">Enable or disable comfort features.</param>
         public void ToggleComfortFeatures(bool enable)
         {
             enableBlink = enable;
             enableVignette = enable;
+            enableSnapTurn = enable;
+            enableContinuousTurn = enable;
+            enableTeleportation = enable;
             
-            Debug.Log($"VRCameraRig: Comfort features {(enable ? "enabled" : "disabled")}");
+            Debug.Log($"[VRCameraRig] Comfort features {(enable ? "enabled" : "disabled")}");
+        }
+        
+        /// <summary>
+        /// Get current camera position
+        /// </summary>
+        public Vector3 GetCameraPosition()
+        {
+            return vrCamera != null ? vrCamera.transform.position : Vector3.zero;
+        }
+        
+        /// <summary>
+        /// Get current camera rotation
+        /// </summary>
+        public Quaternion GetCameraRotation()
+        {
+            return vrCamera != null ? vrCamera.transform.rotation : Quaternion.identity;
+        }
+        
+        /// <summary>
+        /// Check if VR mode is active
+        /// </summary>
+        public bool IsVRMode()
+        {
+            return isVRMode;
+        }
+        
+        /// <summary>
+        /// Get camera offset transform
+        /// </summary>
+        public Transform GetCameraOffsetTransform()
+        {
+            return cameraOffsetTransform;
+        }
+        
+        /// <summary>
+        /// Get VR camera
+        /// </summary>
+        public Camera GetVRCamera()
+        {
+            return vrCamera;
+        }
+        
+        /// <summary>
+        /// Get XR Origin
+        /// </summary>
+        public XROrigin GetXROrigin()
+        {
+            return xrOrigin;
         }
         
         private void OnDestroy()
         {
-            // Cleanup materials
-            if (_vignetteMaterial != null)
+            // Cleanup
+            if (vrCamera != null)
             {
-                DestroyImmediate(_vignetteMaterial);
+                vrCamera.transform.SetParent(null);
             }
         }
     }

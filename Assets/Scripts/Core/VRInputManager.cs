@@ -1,365 +1,557 @@
 using UnityEngine;
 using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit;
-using UnityEngine.InputSystem;
 using System.Collections.Generic;
 
 namespace Run4theRelic.Core
 {
     /// <summary>
-    /// Manages all VR input including controller buttons, hand gestures, and input events.
-    /// Provides a unified interface for VR input across different devices.
+    /// VR Input Manager för Run4theRelic
+    /// Hanterar all VR-input inklusive controllers, hand gestures och input events
     /// </summary>
     public class VRInputManager : MonoBehaviour
     {
-        [Header("Input Settings")]
+        [Header("VR Input Settings")]
         [SerializeField] private bool enableControllerInput = true;
-        [SerializeField] private bool enableHandGestures = true;
-        [SerializeField] private float gestureThreshold = 0.8f;
+        [SerializeField] private bool enableHandTracking = true;
+        [SerializeField] private bool enableGestureRecognition = true;
+        [SerializeField] private float gestureHoldTime = 0.5f;
+        [SerializeField] private float gestureTolerance = 0.1f;
         
-        [Header("Controller References")]
-        [SerializeField] private XRController leftController;
-        [SerializeField] private XRController rightController;
+        [Header("Input Thresholds")]
+        [SerializeField] private float triggerThreshold = 0.5f;
+        [SerializeField] private float gripThreshold = 0.5f;
+        [SerializeField] private float thumbstickThreshold = 0.3f;
         
-        [Header("Input Events")]
-        [SerializeField] private bool enableInputEvents = true;
+        // Private fields
+        private List<InputDevice> vrControllers = new List<InputDevice>();
+        private List<InputDevice> vrHands = new List<InputDevice>();
+        private Dictionary<InputDevice, InputDeviceState> deviceStates = new Dictionary<InputDevice, InputDeviceState>();
         
-        // Input States
-        private bool _leftTriggerPressed = false;
-        private bool _rightTriggerPressed = false;
-        private bool _leftGripPressed = false;
-        private bool _rightGripPressed = false;
-        private bool _leftPrimaryButtonPressed = false;
-        private bool _rightPrimaryButtonPressed = false;
-        private bool _leftSecondaryButtonPressed = false;
-        private bool _rightSecondaryButtonPressed = false;
+        // Input state
+        private bool leftTriggerPressed = false;
+        private bool rightTriggerPressed = false;
+        private bool leftGripPressed = false;
+        private bool rightGripPressed = false;
+        private Vector2 leftThumbstick = Vector2.zero;
+        private Vector2 rightThumbstick = Vector2.zero;
         
-        // Hand Gestures
-        private bool _leftHandClosed = false;
-        private bool _rightHandClosed = false;
-        private bool _leftHandPointing = false;
-        private bool _rightHandPointing = false;
-        
-        // Input Values
-        private float _leftTriggerValue = 0f;
-        private float _rightTriggerValue = 0f;
-        private float _leftGripValue = 0f;
-        private float _rightGripValue = 0f;
-        private Vector2 _leftThumbstickValue = Vector2.zero;
-        private Vector2 _rightThumbstickValue = Vector2.zero;
+        // Gesture state
+        private HandGesture leftHandGesture = HandGesture.OpenHand;
+        private HandGesture rightHandGesture = HandGesture.OpenHand;
+        private float leftGestureHoldTimer = 0f;
+        private float rightGestureHoldTimer = 0f;
         
         // Events
         public static event System.Action<bool> OnLeftTriggerChanged;
         public static event System.Action<bool> OnRightTriggerChanged;
         public static event System.Action<bool> OnLeftGripChanged;
         public static event System.Action<bool> OnRightGripChanged;
-        public static event System.Action<bool> OnLeftPrimaryButtonChanged;
-        public static event System.Action<bool> OnRightPrimaryButtonChanged;
-        public static event System.Action<bool> OnLeftSecondaryButtonChanged;
-        public static event System.Action<bool> OnRightSecondaryButtonChanged;
-        public static event System.Action<bool> OnLeftHandGestureChanged;
-        public static event System.Action<bool> OnRightHandGestureChanged;
-        
-        // Properties
-        public bool LeftTriggerPressed => _leftTriggerPressed;
-        public bool RightTriggerPressed => _rightTriggerPressed;
-        public bool LeftGripPressed => _leftGripPressed;
-        public bool RightGripPressed => _rightGripPressed;
-        public bool LeftPrimaryButtonPressed => _leftPrimaryButtonPressed;
-        public bool RightPrimaryButtonPressed => _rightPrimaryButtonPressed;
-        public bool LeftSecondaryButtonPressed => _leftSecondaryButtonPressed;
-        public bool RightSecondaryButtonPressed => _rightSecondaryButtonPressed;
-        public bool LeftHandClosed => _leftHandClosed;
-        public bool RightHandClosed => _rightHandClosed;
-        public bool LeftHandPointing => _leftHandPointing;
-        public bool RightHandPointing => _rightHandPointing;
-        
-        public float LeftTriggerValue => _leftTriggerValue;
-        public float RightTriggerValue => _rightTriggerValue;
-        public float LeftGripValue => _leftGripValue;
-        public float RightGripValue => _rightGripValue;
-        public Vector2 LeftThumbstickValue => _leftThumbstickValue;
-        public Vector2 RightThumbstickValue => _rightThumbstickValue;
+        public static event System.Action<Vector2> OnLeftThumbstickChanged;
+        public static event System.Action<Vector2> OnRightThumbstickChanged;
+        public static event System.Action<HandGesture> OnLeftHandGestureChanged;
+        public static event System.Action<HandGesture> OnRightHandGestureChanged;
+        public static event System.Action<InputDevice> OnVRDeviceConnected;
+        public static event System.Action<InputDevice> OnVRDeviceDisconnected;
         
         private void Start()
         {
-            // Find controllers if not assigned
-            if (leftController == null || rightController == null)
-            {
-                FindControllers();
-            }
-            
-            // Subscribe to VR manager events
-            VRManager.OnVRModeChanged += OnVRModeChanged;
+            InitializeVRInput();
         }
         
         private void Update()
         {
+            UpdateVRInput();
+            UpdateHandGestures();
+        }
+        
+        /// <summary>
+        /// Initialize VR-inputsystemet
+        /// </summary>
+        private void InitializeVRInput()
+        {
+            // Find VR devices
+            FindVRDevices();
+            
+            // Setup event listeners
+            InputDevices.deviceConnected += OnDeviceConnected;
+            InputDevices.deviceDisconnected += OnDeviceDisconnected;
+            
+            Debug.Log("[VRInputManager] VR Input System initialized");
+        }
+        
+        /// <summary>
+        /// Hitta VR-enheter
+        /// </summary>
+        private void FindVRDevices()
+        {
+            // Find controllers
+            if (enableControllerInput)
+            {
+                InputDevices.GetDevicesWithCharacteristics(
+                    InputDeviceCharacteristics.Controller | InputDeviceCharacteristics.HeldInHand,
+                    vrControllers
+                );
+                
+                foreach (var controller in vrControllers)
+                {
+                    if (!deviceStates.ContainsKey(controller))
+                    {
+                        deviceStates[controller] = new InputDeviceState();
+                    }
+                }
+            }
+            
+            // Find hands
+            if (enableHandTracking)
+            {
+                InputDevices.GetDevicesWithCharacteristics(
+                    InputDeviceCharacteristics.HandTracking,
+                    vrHands
+                );
+                
+                foreach (var hand in vrHands)
+                {
+                    if (!deviceStates.ContainsKey(hand))
+                    {
+                        deviceStates[hand] = new InputDeviceState();
+                    }
+                }
+            }
+            
+            Debug.Log($"[VRInputManager] Found {vrControllers.Count} controllers and {vrHands.Count} hands");
+        }
+        
+        /// <summary>
+        /// Update VR-input
+        /// </summary>
+        private void UpdateVRInput()
+        {
             if (!enableControllerInput) return;
             
             // Update controller input
-            UpdateControllerInput();
-            
-            // Update hand gestures
-            if (enableHandGestures)
+            foreach (var controller in vrControllers)
             {
-                UpdateHandGestures();
+                if (controller.isValid)
+                {
+                    UpdateControllerInput(controller);
+                }
             }
         }
         
         /// <summary>
-        /// Find and assign VR controllers.
+        /// Update controller input
         /// </summary>
-        private void FindControllers()
+        private void UpdateControllerInput(InputDevice controller)
         {
-            var controllers = FindObjectsOfType<XRController>();
+            // Determine if this is left or right controller
+            bool isLeftController = IsLeftController(controller);
             
-            foreach (var controller in controllers)
+            // Update trigger
+            if (controller.TryGetFeatureValue(CommonUsages.trigger, out float triggerValue))
             {
-                if (controller.controllerNode == XRNode.LeftHand)
+                bool triggerPressed = triggerValue > triggerThreshold;
+                
+                if (isLeftController)
                 {
-                    leftController = controller;
+                    if (leftTriggerPressed != triggerPressed)
+                    {
+                        leftTriggerPressed = triggerPressed;
+                        OnLeftTriggerChanged?.Invoke(triggerPressed);
+                    }
                 }
-                else if (controller.controllerNode == XRNode.RightHand)
+                else
                 {
-                    rightController = controller;
+                    if (rightTriggerPressed != triggerPressed)
+                    {
+                        rightTriggerPressed = triggerPressed;
+                        OnRightTriggerChanged?.Invoke(triggerPressed);
+                    }
                 }
             }
             
-            if (leftController == null || rightController == null)
+            // Update grip
+            if (controller.TryGetFeatureValue(CommonUsages.grip, out float gripValue))
             {
-                Debug.LogWarning("VRInputManager: Could not find both controllers!");
+                bool gripPressed = gripValue > gripThreshold;
+                
+                if (isLeftController)
+                {
+                    if (leftGripPressed != gripPressed)
+                    {
+                        leftGripPressed = gripPressed;
+                        OnLeftGripChanged?.Invoke(gripPressed);
+                    }
+                }
+                else
+                {
+                    if (rightGripPressed != gripPressed)
+                    {
+                        rightGripPressed = gripPressed;
+                        OnRightGripChanged?.Invoke(gripPressed);
+                    }
+                }
+            }
+            
+            // Update thumbstick
+            if (controller.TryGetFeatureValue(CommonUsages.primary2DAxis, out Vector2 thumbstick))
+            {
+                if (Mathf.Abs(thumbstick.x) > thumbstickThreshold || Mathf.Abs(thumbstick.y) > thumbstickThreshold)
+                {
+                    if (isLeftController)
+                    {
+                        if (leftThumbstick != thumbstick)
+                        {
+                            leftThumbstick = thumbstick;
+                            OnLeftThumbstickChanged?.Invoke(thumbstick);
+                        }
+                    }
+                    else
+                    {
+                        if (rightThumbstick != thumbstick)
+                        {
+                            rightThumbstick = thumbstick;
+                            OnRightThumbstickChanged?.Invoke(thumbstick);
+                        }
+                    }
+                }
             }
         }
         
         /// <summary>
-        /// Update controller input states and values.
-        /// </summary>
-        private void UpdateControllerInput()
-        {
-            if (leftController != null && leftController.inputDevice.isValid)
-            {
-                UpdateLeftControllerInput();
-            }
-            
-            if (rightController != null && rightController.inputDevice.isValid)
-            {
-                UpdateRightControllerInput();
-            }
-        }
-        
-        /// <summary>
-        /// Update left controller input.
-        /// </summary>
-        private void UpdateLeftControllerInput()
-        {
-            // Trigger
-            bool newLeftTriggerPressed = _leftTriggerValue > gestureThreshold;
-            if (newLeftTriggerPressed != _leftTriggerPressed)
-            {
-                _leftTriggerPressed = newLeftTriggerPressed;
-                OnLeftTriggerChanged?.Invoke(_leftTriggerPressed);
-            }
-            
-            // Grip
-            bool newLeftGripPressed = _leftGripValue > gestureThreshold;
-            if (newLeftGripPressed != _leftGripPressed)
-            {
-                _leftGripPressed = newLeftGripPressed;
-                OnLeftGripChanged?.Invoke(_leftGripPressed);
-            }
-            
-            // Primary button (A/X)
-            bool newLeftPrimaryPressed = false;
-            if (leftController.inputDevice.TryGetFeatureValue(CommonUsages.primaryButton, out newLeftPrimaryPressed))
-            {
-                if (newLeftPrimaryPressed != _leftPrimaryButtonPressed)
-                {
-                    _leftPrimaryButtonPressed = newLeftPrimaryPressed;
-                    OnLeftPrimaryButtonChanged?.Invoke(_leftPrimaryButtonPressed);
-                }
-            }
-            
-            // Secondary button (B/Y)
-            bool newLeftSecondaryPressed = false;
-            if (leftController.inputDevice.TryGetFeatureValue(CommonUsages.secondaryButton, out newLeftSecondaryPressed))
-            {
-                if (newLeftSecondaryPressed != _leftSecondaryButtonPressed)
-                {
-                    _leftSecondaryButtonPressed = newLeftSecondaryPressed;
-                    OnLeftSecondaryButtonChanged?.Invoke(_leftSecondaryButtonPressed);
-                }
-            }
-            
-            // Thumbstick
-            if (leftController.inputDevice.TryGetFeatureValue(CommonUsages.primary2DAxis, out _leftThumbstickValue))
-            {
-                // Thumbstick value updated
-            }
-        }
-        
-        /// <summary>
-        /// Update right controller input.
-        /// </summary>
-        private void UpdateRightControllerInput()
-        {
-            // Trigger
-            bool newRightTriggerPressed = _rightTriggerValue > gestureThreshold;
-            if (newRightTriggerPressed != _rightTriggerPressed)
-            {
-                _rightTriggerPressed = newRightTriggerPressed;
-                OnRightTriggerChanged?.Invoke(_rightTriggerPressed);
-            }
-            
-            // Grip
-            bool newRightGripPressed = _rightGripValue > gestureThreshold;
-            if (newRightGripPressed != _rightGripPressed)
-            {
-                _rightGripPressed = newRightGripPressed;
-                OnRightGripChanged?.Invoke(_rightGripPressed);
-            }
-            
-            // Primary button (A/X)
-            bool newRightPrimaryPressed = false;
-            if (rightController.inputDevice.TryGetFeatureValue(CommonUsages.primaryButton, out newRightPrimaryPressed))
-            {
-                if (newRightPrimaryPressed != _rightPrimaryButtonPressed)
-                {
-                    _rightPrimaryButtonPressed = newRightPrimaryPressed;
-                    OnRightPrimaryButtonChanged?.Invoke(_rightPrimaryButtonPressed);
-                }
-            }
-            
-            // Secondary button (B/Y)
-            bool newRightSecondaryPressed = false;
-            if (rightController.inputDevice.TryGetFeatureValue(CommonUsages.secondaryButton, out newRightSecondaryPressed))
-            {
-                if (newRightSecondaryPressed != _rightSecondaryButtonPressed)
-                {
-                    _rightSecondaryButtonPressed = newRightSecondaryPressed;
-                    OnRightSecondaryButtonChanged?.Invoke(_rightSecondaryButtonPressed);
-                }
-            }
-            
-            // Thumbstick
-            if (rightController.inputDevice.TryGetFeatureValue(CommonUsages.primary2DAxis, out _rightThumbstickValue))
-            {
-                // Thumbstick value updated
-            }
-        }
-        
-        /// <summary>
-        /// Update hand gesture states.
+        /// Update hand gestures
         /// </summary>
         private void UpdateHandGestures()
         {
-            // This would integrate with hand tracking system
-            // For now, we'll use grip values as a proxy for hand gestures
+            if (!enableGestureRecognition) return;
             
-            // Left hand
-            bool newLeftHandClosed = _leftGripValue > gestureThreshold;
-            if (newLeftHandClosed != _leftHandClosed)
-            {
-                _leftHandClosed = newLeftHandClosed;
-                OnLeftHandGestureChanged?.Invoke(_leftHandClosed);
-            }
+            // Update left hand gesture
+            UpdateHandGesture(XRNode.LeftHand, ref leftHandGesture, ref leftGestureHoldTimer);
             
-            // Right hand
-            bool newRightHandClosed = _rightGripValue > gestureThreshold;
-            if (newRightHandClosed != _rightHandClosed)
+            // Update right hand gesture
+            UpdateHandGesture(XRNode.RightHand, ref rightHandGesture, ref rightGestureHoldTimer);
+        }
+        
+        /// <summary>
+        /// Update hand gesture for specific hand
+        /// </summary>
+        private void UpdateHandGesture(XRNode handNode, ref HandGesture currentGesture, ref float holdTimer)
+        {
+            var hand = GetHandDevice(handNode);
+            if (!hand.isValid) return;
+            
+            // Get hand pose data
+            if (hand.TryGetFeatureValue(CommonUsages.handData, out Hand handData))
             {
-                _rightHandClosed = newRightHandClosed;
-                OnRightHandGestureChanged?.Invoke(_rightHandClosed);
+                var newGesture = RecognizeHandGesture(handData);
+                
+                if (newGesture != currentGesture)
+                {
+                    // Check if gesture should change
+                    if (newGesture == HandGesture.OpenHand)
+                    {
+                        // Reset hold timer for open hand
+                        holdTimer = 0f;
+                    }
+                    else
+                    {
+                        // Increment hold timer for closed gestures
+                        holdTimer += Time.deltaTime;
+                        
+                        if (holdTimer >= gestureHoldTime)
+                        {
+                            // Gesture held long enough, change it
+                            currentGesture = newGesture;
+                            
+                            if (handNode == XRNode.LeftHand)
+                            {
+                                OnLeftHandGestureChanged?.Invoke(currentGesture);
+                            }
+                            else
+                            {
+                                OnRightHandGestureChanged?.Invoke(currentGesture);
+                            }
+                            
+                            Debug.Log($"[VRInputManager] {handNode} gesture changed to: {currentGesture}");
+                        }
+                    }
+                }
             }
         }
         
         /// <summary>
-        /// Get trigger value for a specific controller.
+        /// Recognize hand gesture from hand data
         /// </summary>
-        /// <param name="isLeft">True for left controller, false for right.</param>
-        /// <returns>Trigger value (0-1).</returns>
-        public float GetTriggerValue(bool isLeft)
+        private HandGesture RecognizeHandGesture(Hand handData)
         {
-            return isLeft ? _leftTriggerValue : _rightTriggerValue;
-        }
-        
-        /// <summary>
-        /// Get grip value for a specific controller.
-        /// </summary>
-        /// <param name="isLeft">True for left controller, false for right.</param>
-        /// <returns>Grip value (0-1).</returns>
-        public float GetGripValue(bool isLeft)
-        {
-            return isLeft ? _leftGripValue : _rightGripValue;
-        }
-        
-        /// <summary>
-        /// Get thumbstick value for a specific controller.
-        /// </summary>
-        /// <param name="isLeft">True for left controller, false for right.</param>
-        /// <returns>Thumbstick value as Vector2.</returns>
-        public Vector2 GetThumbstickValue(bool isLeft)
-        {
-            return isLeft ? _leftThumbstickValue : _rightThumbstickValue;
-        }
-        
-        /// <summary>
-        /// Check if any trigger is pressed.
-        /// </summary>
-        /// <returns>True if any trigger is pressed.</returns>
-        public bool IsAnyTriggerPressed()
-        {
-            return _leftTriggerPressed || _rightTriggerPressed;
-        }
-        
-        /// <summary>
-        /// Check if any grip is pressed.
-        /// </summary>
-        /// <returns>True if any grip is pressed.</returns>
-        public bool IsAnyGripPressed()
-        {
-            return _leftGripPressed || _rightGripPressed;
-        }
-        
-        /// <summary>
-        /// Check if any primary button is pressed.
-        /// </summary>
-        /// <returns>True if any primary button is pressed.</returns>
-        public bool IsAnyPrimaryButtonPressed()
-        {
-            return _leftPrimaryButtonPressed || _rightPrimaryButtonPressed;
-        }
-        
-        /// <summary>
-        /// Check if any secondary button is pressed.
-        /// </summary>
-        /// <returns>True if any secondary button is pressed.</returns>
-        public bool IsAnySecondaryButtonPressed()
-        {
-            return _leftSecondaryButtonPressed || _rightSecondaryButtonPressed;
-        }
-        
-        /// <summary>
-        /// Handle VR mode changes.
-        /// </summary>
-        /// <param name="isVRMode">True if VR mode is active.</param>
-        private void OnVRModeChanged(bool isVRMode)
-        {
-            if (isVRMode)
+            // This is a simplified gesture recognition
+            // In a real implementation, you would analyze finger positions more carefully
+            
+            bool thumbExtended = handData.GetFingerIsPinching(HandFinger.Thumb);
+            bool indexExtended = handData.GetFingerIsPinching(HandFinger.Index);
+            bool middleExtended = handData.GetFingerIsPinching(HandFinger.Middle);
+            bool ringExtended = handData.GetFingerIsPinching(HandFinger.Ring);
+            bool pinkyExtended = handData.GetFingerIsPinching(HandFinger.Little);
+            
+            // Count extended fingers
+            int extendedFingers = 0;
+            if (thumbExtended) extendedFingers++;
+            if (indexExtended) extendedFingers++;
+            if (middleExtended) extendedFingers++;
+            if (ringExtended) extendedFingers++;
+            if (pinkyExtended) extendedFingers++;
+            
+            // Determine gesture based on finger count and positions
+            if (extendedFingers == 0)
             {
-                FindControllers();
+                return HandGesture.Fist;
+            }
+            else if (extendedFingers == 1 && indexExtended)
+            {
+                return HandGesture.Point;
+            }
+            else if (extendedFingers == 2 && thumbExtended && indexExtended)
+            {
+                return HandGesture.ThumbsUp;
+            }
+            else if (extendedFingers == 5)
+            {
+                return HandGesture.OpenHand;
+            }
+            else if (extendedFingers == 3 && !thumbExtended && !pinkyExtended)
+            {
+                return HandGesture.Grab;
             }
             else
             {
-                // Disable VR input when not in VR mode
-                enableControllerInput = false;
+                return HandGesture.OpenHand;
             }
+        }
+        
+        /// <summary>
+        /// Get hand device for specific hand node
+        /// </summary>
+        private InputDevice GetHandDevice(XRNode handNode)
+        {
+            foreach (var hand in vrHands)
+            {
+                if (hand.characteristics.HasFlag(InputDeviceCharacteristics.HandTracking))
+                {
+                    if ((handNode == XRNode.LeftHand && hand.characteristics.HasFlag(InputDeviceCharacteristics.Left)) ||
+                        (handNode == XRNode.RightHand && hand.characteristics.HasFlag(InputDeviceCharacteristics.Right)))
+                    {
+                        return hand;
+                    }
+                }
+            }
+            
+            return default;
+        }
+        
+        /// <summary>
+        /// Check if controller is left controller
+        /// </summary>
+        private bool IsLeftController(InputDevice controller)
+        {
+            return controller.characteristics.HasFlag(InputDeviceCharacteristics.Left);
+        }
+        
+        /// <summary>
+        /// Handle device connection
+        /// </summary>
+        private void OnDeviceConnected(InputDevice device)
+        {
+            Debug.Log($"[VRInputManager] Device connected: {device.name}");
+            
+            if (device.characteristics.HasFlag(InputDeviceCharacteristics.Controller))
+            {
+                if (!vrControllers.Contains(device))
+                {
+                    vrControllers.Add(device);
+                    deviceStates[device] = new InputDeviceState();
+                }
+            }
+            else if (device.characteristics.HasFlag(InputDeviceCharacteristics.HandTracking))
+            {
+                if (!vrHands.Contains(device))
+                {
+                    vrHands.Add(device);
+                    deviceStates[device] = new InputDeviceState();
+                }
+            }
+            
+            OnVRDeviceConnected?.Invoke(device);
+        }
+        
+        /// <summary>
+        /// Handle device disconnection
+        /// </summary>
+        private void OnDeviceDisconnected(InputDevice device)
+        {
+            Debug.Log($"[VRInputManager] Device disconnected: {device.name}");
+            
+            if (vrControllers.Contains(device))
+            {
+                vrControllers.Remove(device);
+                deviceStates.Remove(device);
+            }
+            
+            if (vrHands.Contains(device))
+            {
+                vrHands.Remove(device);
+                deviceStates.Remove(device);
+            }
+            
+            OnVRDeviceDisconnected?.Invoke(device);
+        }
+        
+        /// <summary>
+        /// Get left trigger state
+        /// </summary>
+        public bool IsLeftTriggerPressed()
+        {
+            return leftTriggerPressed;
+        }
+        
+        /// <summary>
+        /// Get right trigger state
+        /// </summary>
+        public bool IsRightTriggerPressed()
+        {
+            return rightTriggerPressed;
+        }
+        
+        /// <summary>
+        /// Get left grip state
+        /// </summary>
+        public bool IsLeftGripPressed()
+        {
+            return leftGripPressed;
+        }
+        
+        /// <summary>
+        /// Get right grip state
+        /// </summary>
+        public bool IsRightGripPressed()
+        {
+            return rightGripPressed;
+        }
+        
+        /// <summary>
+        /// Get left thumbstick value
+        /// </summary>
+        public Vector2 GetLeftThumbstick()
+        {
+            return leftThumbstick;
+        }
+        
+        /// <summary>
+        /// Get right thumbstick value
+        /// </summary>
+        public Vector2 GetRightThumbstick()
+        {
+            return rightThumbstick;
+        }
+        
+        /// <summary>
+        /// Get left hand gesture
+        /// </summary>
+        public HandGesture GetLeftHandGesture()
+        {
+            return leftHandGesture;
+        }
+        
+        /// <summary>
+        /// Get right hand gesture
+        /// </summary>
+        public HandGesture GetRightHandGesture()
+        {
+            return rightHandGesture;
+        }
+        
+        /// <summary>
+        /// Get VR controllers
+        /// </summary>
+        public List<InputDevice> GetVRControllers()
+        {
+            return new List<InputDevice>(vrControllers);
+        }
+        
+        /// <summary>
+        /// Get VR hands
+        /// </summary>
+        public List<InputDevice> GetVRHands()
+        {
+            return new List<InputDevice>(vrHands);
+        }
+        
+        /// <summary>
+        /// Check if any trigger is pressed
+        /// </summary>
+        public bool IsAnyTriggerPressed()
+        {
+            return leftTriggerPressed || rightTriggerPressed;
+        }
+        
+        /// <summary>
+        /// Check if any grip is pressed
+        /// </summary>
+        public bool IsAnyGripPressed()
+        {
+            return leftGripPressed || rightGripPressed;
+        }
+        
+        /// <summary>
+        /// Toggle input features
+        /// </summary>
+        public void ToggleInputFeatures(bool enable)
+        {
+            enableControllerInput = enable;
+            enableHandTracking = enable;
+            enableGestureRecognition = enable;
+            
+            Debug.Log($"[VRInputManager] Input features {(enable ? "enabled" : "disabled")}");
         }
         
         private void OnDestroy()
         {
-            // Unsubscribe from events
-            VRManager.OnVRModeChanged -= OnVRModeChanged;
+            // Clean up event listeners
+            InputDevices.deviceConnected -= OnDeviceConnected;
+            InputDevices.deviceDisconnected -= OnDeviceDisconnected;
         }
+    }
+    
+    /// <summary>
+    /// Hand gesture types
+    /// </summary>
+    public enum HandGesture
+    {
+        OpenHand,
+        Fist,
+        Point,
+        Grab,
+        ThumbsUp,
+        Wave
+    }
+    
+    /// <summary>
+    /// Hand side
+    /// </summary>
+    public enum HandSide
+    {
+        Left,
+        Right,
+        Both
+    }
+    
+    /// <summary>
+    /// Input device state
+    /// </summary>
+    public class InputDeviceState
+    {
+        public bool isConnected = false;
+        public Vector3 position = Vector3.zero;
+        public Quaternion rotation = Quaternion.identity;
+        public bool isTracked = false;
     }
 }
