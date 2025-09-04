@@ -37,6 +37,8 @@ namespace Run4theRelic.Puzzles
         private VRInputManager _vrInputManager;
         private VRManager _vrManager;
         private VRInteractionSystem _vrInteractionSystem;
+        private VRPerformanceAnalytics _analytics;
+        private VRAIGameplayDirector _aiDirector;
         
         // Hand Tracking
         private bool _leftHandInPosition = false;
@@ -511,6 +513,52 @@ namespace Run4theRelic.Puzzles
             if (allGesturesCompleted && !IsPuzzleSolved)
             {
                 SolvePuzzle();
+            }
+        }
+
+        /// <summary>
+        /// Marks the puzzle solved and triggers base completion logic.
+        /// </summary>
+        private void SolvePuzzle()
+        {
+            if (IsPuzzleSolved || IsCompleted) return;
+            IsPuzzleSolved = true;
+            Complete();
+        }
+
+        public bool IsPuzzleSolved { get; private set; }
+
+        protected override void OnStartPuzzle()
+        {
+            // Resolve analytics and AI references lazily
+            if (_analytics == null) _analytics = UnityEngine.Object.FindObjectOfType<VRPerformanceAnalytics>(true);
+            if (_aiDirector == null) _aiDirector = UnityEngine.Object.FindObjectOfType<VRAIGameplayDirector>(true);
+            IsPuzzleSolved = false;
+        }
+
+        protected override void OnCompletePuzzle(float clearTime, bool gold)
+        {
+            // Record analytics on success
+            if (_analytics == null) _analytics = UnityEngine.Object.FindObjectOfType<VRPerformanceAnalytics>(true);
+            if (_aiDirector == null) _aiDirector = UnityEngine.Object.FindObjectOfType<VRAIGameplayDirector>(true);
+            if (_analytics != null)
+            {
+                float difficulty = _aiDirector != null ? _aiDirector.GetCurrentDifficulty() : 5f;
+                _analytics.RecordPuzzleAttempt(PuzzleType.HandGesture, true, clearTime, difficulty);
+            }
+        }
+
+        protected override void OnFailed()
+        {
+            base.OnFailed();
+            // Record failed attempt with time spent
+            float timeSpent = timeLimit - Mathf.Max(_timer, 0f);
+            if (_analytics == null) _analytics = UnityEngine.Object.FindObjectOfType<VRPerformanceAnalytics>(true);
+            if (_aiDirector == null) _aiDirector = UnityEngine.Object.FindObjectOfType<VRAIGameplayDirector>(true);
+            if (_analytics != null)
+            {
+                float difficulty = _aiDirector != null ? _aiDirector.GetCurrentDifficulty() : 5f;
+                _analytics.RecordPuzzleAttempt(PuzzleType.HandGesture, false, timeSpent, difficulty);
             }
         }
         

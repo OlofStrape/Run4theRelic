@@ -42,9 +42,14 @@ namespace Run4theRelic.Puzzles
         // VR References
         private VRInteractionSystem _vrInteractionSystem;
         private VRManager _vrManager;
+        private VRPerformanceAnalytics _analytics;
+        private VRAIGameplayDirector _aiDirector;
         
         // Events
         public static event System.Action<string, float, bool> OnPuzzleCompleted;
+
+        // Completion state queried by other systems
+        public bool IsPuzzleSolved { get; private set; }
         
         protected override void Start()
         {
@@ -353,6 +358,50 @@ namespace Run4theRelic.Puzzles
             if (allRelicsPlaced && !IsPuzzleSolved)
             {
                 SolvePuzzle();
+            }
+        }
+
+        /// <summary>
+        /// Marks the puzzle solved and triggers base completion logic.
+        /// </summary>
+        private void SolvePuzzle()
+        {
+            if (IsPuzzleSolved || IsCompleted) return;
+            IsPuzzleSolved = true;
+            Complete();
+        }
+
+        protected override void OnStartPuzzle()
+        {
+            // Resolve analytics and AI references lazily
+            if (_analytics == null) _analytics = UnityEngine.Object.FindObjectOfType<VRPerformanceAnalytics>(true);
+            if (_aiDirector == null) _aiDirector = UnityEngine.Object.FindObjectOfType<VRAIGameplayDirector>(true);
+            IsPuzzleSolved = false;
+        }
+
+        protected override void OnCompletePuzzle(float clearTime, bool gold)
+        {
+            // Record analytics on success
+            if (_analytics == null) _analytics = UnityEngine.Object.FindObjectOfType<VRPerformanceAnalytics>(true);
+            if (_aiDirector == null) _aiDirector = UnityEngine.Object.FindObjectOfType<VRAIGameplayDirector>(true);
+            if (_analytics != null)
+            {
+                float difficulty = _aiDirector != null ? _aiDirector.GetCurrentDifficulty() : 5f;
+                _analytics.RecordPuzzleAttempt(PuzzleType.RelicPlacement, true, clearTime, difficulty);
+            }
+        }
+
+        protected override void OnFailed()
+        {
+            base.OnFailed();
+            // Record failed attempt with time spent
+            float timeSpent = timeLimit - Mathf.Max(_timer, 0f);
+            if (_analytics == null) _analytics = UnityEngine.Object.FindObjectOfType<VRPerformanceAnalytics>(true);
+            if (_aiDirector == null) _aiDirector = UnityEngine.Object.FindObjectOfType<VRAIGameplayDirector>(true);
+            if (_analytics != null)
+            {
+                float difficulty = _aiDirector != null ? _aiDirector.GetCurrentDifficulty() : 5f;
+                _analytics.RecordPuzzleAttempt(PuzzleType.RelicPlacement, false, timeSpent, difficulty);
             }
         }
         
