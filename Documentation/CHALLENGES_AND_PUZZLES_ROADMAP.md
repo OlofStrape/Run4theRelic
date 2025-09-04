@@ -377,6 +377,150 @@ private void TrackPerformance()
 3. **AI-algoritmer** för svårighetsjustering
 4. **Cross-platform kompatibilitet**
 
+## Backlog: Nya Konkreta Utmaningar
+
+Nedanstående utmaningar är konkreta backloggposter som kan implementeras stegvis. Varje post anger nivå, pusseltyp (mappad till befintliga system) och korta acceptanskriterier. Tidsgränser och guld-tider följer bas-API:t i `PuzzleControllerBase` (goldTimeFraction ≈ 0.5).
+
+### Relic Placement (RLP)
+- **RLP-101 Triad Slots (Beginner)**
+  - **Typ**: RelicPlacement
+  - **Beskrivning**: Tre reliker placeras i formade slotar (triangel). Auto-snap på nära håll.
+  - **Mål**: Alla tre på rätt plats; fel plats blinkar rött i 0.5s.
+  - **Tidsgräns/Guld**: 60s / ≤30s.
+  - **AI-integration**: Justera slotSnapDistance och hint-frekvens efter precision.
+  - **Variationer**: Form vs symbol-matchning.
+
+- **RLP-102 Color Rune Swap (Intermediate)**
+  - **Typ**: RelicPlacement + PatternMatching (visuell färgsekvens som ledtråd)
+  - **Beskrivning**: Färgrunor måste bytas mellan slotar för att matcha visad sekvens.
+  - **Mål**: Rätt färg i rätt slot inom tidsgräns.
+  - **Tidsgräns/Guld**: 75s / ≤37s.
+  - **AI-integration**: Öka antal runor 4→6; aktivera delvisa hints vid låg mastery.
+
+- **RLP-103 Magnetic Polarity Grid (Advanced)**
+  - **Typ**: RelicPlacement
+  - **Beskrivning**: Reliker med polaritet påverkar varandra; rätt layout kräver repulsion/attraktion.
+  - **Mål**: Stabil konfiguration utan kollisioner i 3s.
+  - **Tidsgräns/Guld**: 90s / ≤45s.
+  - **AI-integration**: Skala kraft/vikt och antal reliker 4→6.
+
+- **RLP-104 Rotational Lock Assembly (Expert)**
+  - **Typ**: RelicPlacement
+  - **Beskrivning**: Mekanism låses upp när tre ring-delar roteras till rätt vinkel innan placering.
+  - **Mål**: Alla ringar inom ±5° och sedan rätt slot.
+  - **Tidsgräns/Guld**: 120s / ≤60s.
+  - **AI-integration**: Vinkel-tolerans ±10°→±3° efter skicklighet.
+
+### Hand Gesture (GES)
+- **GES-201 Mirror Hands (Beginner)**
+  - **Typ**: HandGesture
+  - **Beskrivning**: Spelaren speglar vänster/höger-handspose i tre snabba steg.
+  - **Mål**: Point → OpenHand → ThumbsUp i rätt ordning.
+  - **Tidsgräns/Guld**: 45s / ≤22s.
+  - **AI-integration**: Hålltid 0.5→1.5s per gest vid hög frustration.
+
+- **GES-202 Gesture Simon (Intermediate)**
+  - **Typ**: HandGesture + Sequence
+  - **Beskrivning**: En växande gestsekvens (2→5) som måste återges korrekt.
+  - **Mål**: Komplett sekvens utan fel.
+  - **Tidsgräns/Guld**: 70s / ≤35s.
+  - **AI-integration**: Sekvenslängd och tempo skalar dynamiskt.
+
+- **GES-203 Dual-Hold Seal (Advanced)**
+  - **Typ**: HandGesture
+  - **Beskrivning**: Båda händerna måste hålla olika poser samtidigt under given tid.
+  - **Mål**: Left Fist + Right Point i 4–8s utan släpp.
+  - **Tidsgräns/Guld**: 80s / ≤40s.
+  - **AI-integration**: Justera hålltid och toleranser.
+
+### Pattern Matching (PAT)
+- **PAT-301 Starlight Constellation (Beginner)**
+  - **Typ**: PatternMatching
+  - **Beskrivning**: Återskapa ett kort visat stjärmönster på panel.
+  - **Mål**: 5 punkter i rätt ordning/position.
+  - **Tidsgräns/Guld**: 60s / ≤30s.
+  - **AI-integration**: Visningstid 3s→1s; brus ökar vid hög mastery.
+
+- **PAT-302 Echo Rhythm (Intermediate)**
+  - **Typ**: PatternMatching (audio)
+  - **Beskrivning**: Upprepa en 4–6 takters rytm genom hand-trummor.
+  - **Mål**: Matcha timing inom ±120ms (skalar).
+  - **Tidsgräns/Guld**: 75s / ≤37s.
+  - **AI-integration**: Timing-tolerans ±200→±80ms.
+
+- **PAT-303 Haptic Morse (Advanced)**
+  - **Typ**: PatternMatching (haptic)
+  - **Beskrivning**: Tolka vibrationsmönster och välj motsvarande symboler.
+  - **Mål**: 3 mönster korrekt i rad.
+  - **Tidsgräns/Guld**: 90s / ≤45s.
+  - **AI-integration**: Mönsterlängd 3→5, kortare pauser vid hög mastery.
+
+### Sequence (SEQ)
+- **SEQ-401 Time Windows (Beginner)**
+  - **Typ**: Sequence
+  - **Beskrivning**: Tryck fyra sigiller inom blinkande tidsfönster.
+  - **Mål**: Samtliga inom fönster; miss reset:ar steget.
+  - **Tidsgräns/Guld**: 50s / ≤25s.
+  - **AI-integration**: Fönsterbredd 1.2s→0.6s.
+
+- **SEQ-402 Conditional Braid (Intermediate)**
+  - **Typ**: Sequence + Logic
+  - **Beskrivning**: Val av nästa steg beror på föregående knapp (grenad sekvens).
+  - **Mål**: Fullfölj korrekt gren utan fel.
+  - **Tidsgräns/Guld**: 80s / ≤40s.
+  - **AI-integration**: Gren-djup 3→5, färre hints vid hög mastery.
+
+- **SEQ-403 Progressive Cascade (Advanced)**
+  - **Typ**: Sequence
+  - **Beskrivning**: Steg-för-steg där tempot ökar och återstående tid bär över.
+  - **Mål**: 6–8 steg i följd.
+  - **Tidsgräns/Guld**: 90s / ≤45s.
+  - **AI-integration**: Öka stegantal/tempo adaptivt.
+
+### Logic (LOG)
+- **LOG-501 Gate Circuit (Intermediate)**
+  - **Typ**: Logic
+  - **Beskrivning**: Koppla AND/OR/NOT/XOR-block för att tända mållampa.
+  - **Mål**: Giltig krets som uppfyller sanningstabell.
+  - **Tidsgräns/Guld**: 90s / ≤45s.
+  - **AI-integration**: Antal gates 3→6; lägg till störtext vid hög mastery.
+
+- **LOG-502 Rune Truth Table (Advanced)**
+  - **Typ**: Logic
+  - **Beskrivning**: Välj runor som representerar rätt utdata för givna ingångar.
+  - **Mål**: 4–6 rader korrekt innan timeout.
+  - **Tidsgräns/Guld**: 100s / ≤50s.
+  - **AI-integration**: Fler rader och mindre ledtrådar.
+
+- **LOG-503 Path XOR (Expert)**
+  - **Typ**: Logic + Sequence
+  - **Beskrivning**: Navigera plattformar där exakt en av två val alltid är korrekt.
+  - **Mål**: 8 plattformar i rad utan fel.
+  - **Tidsgräns/Guld**: 120s / ≤60s.
+  - **AI-integration**: Längre kedja och tightare timing.
+
+### Combination (COM)
+- **COM-701 Seal Choir (Advanced)**
+  - **Typ**: RelicPlacement + HandGesture
+  - **Beskrivning**: Placera två reliker samtidigt som en specifik dual-gest hålls.
+  - **Mål**: Rätt plats + korrekt gest i ≥3s.
+  - **Tidsgräns/Guld**: 100s / ≤50s.
+  - **AI-integration**: Gest-hålltid och slotsnap-tolerans skalar.
+
+- **COM-702 Starlight Relay (Expert)**
+  - **Typ**: PatternMatching + Sequence
+  - **Beskrivning**: Återskapa mönster, sedan bekräfta i rytmisk sekvens.
+  - **Mål**: Mönster korrekt + 5 steg i takt.
+  - **Tidsgräns/Guld**: 120s / ≤60s.
+  - **AI-integration**: Fler punkter och snabbare takt.
+
+- **COM-703 Circuit Assembly (Master)**
+  - **Typ**: Logic + RelicPlacement
+  - **Beskrivning**: Bygg krets med fysiska relik-moduler och koppla dem i rätt ordning.
+  - **Mål**: Kretsen tänder tre indikatorer.
+  - **Tidsgräns/Guld**: 150s / ≤75s.
+  - **AI-integration**: Fler moduler och striktare toleranser.
+
 ## Resurser och Referenser
 
 ### Unity VR-utveckling
